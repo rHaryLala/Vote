@@ -82,7 +82,7 @@ class RegistrarController extends Controller
 
         try {
             $export = RegistrarClient::forLevels($registrar->voters((int) $data['session_id']), $levels);
-            $result = $importer->syncFromRows($election, $export['voters'], $export['session'], $dryRun);
+            $result = $importer->syncFromRows($election, $export['voters'], $export['session'], $dryRun, ['levels' => $levels]);
         } catch (RegistrarException $e) {
             return response()->json(['code' => 'registrar_error', 'message' => $e->getMessage()], 502);
         } catch (InvalidArgumentException $e) {

@@ -63,7 +63,7 @@ class RegistrarAutoSync
 
             $changed = $preview['added'] > 0 || $preview['removed'] > 0;
             if ($changed) {
-                $this->importer->syncFromRows($election, $export['voters'], $export['session'], auditExtra: ['trigger' => 'auto']);
+                $this->importer->syncFromRows($election, $export['voters'], $export['session'], auditExtra: ['trigger' => 'auto', 'levels' => $election->registrar_levels ?: 'all']);
             }
 
             $election->forceFill(['registrar_synced_at' => now(), 'registrar_sync_error' => null])->save();

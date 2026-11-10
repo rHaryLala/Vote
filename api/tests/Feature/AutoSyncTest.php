@@ -161,3 +161,81 @@ it("à l'ouverture : dernière reprise du registrar ; une panne n'empêche pas d
     $this->artisan('elections:sync-registrar')->assertSuccessful();
     expect($f->voters()->count())->toBe(1);
 });
+
+/* ---------------------------------------------------------------- Niveaux : Licence / Master / les deux */
+
+function autoRegistrarLevels(array $voters, array $without = []): void
+{
+    config(['vote.registrar.url' => 'https://registrar.test/app/electeurs-sa.api.php', 'vote.registrar.token' => 'jeton-secret-tres-long-123']);
+    Http::swap(new Factory);
+    Http::fake(fn () => Http::response([
+        'session' => ['id' => 490, 'name' => 'Premier semestre', 'year' => '2026 - 2027', 'semester' => 1],
+        'counts' => ['enrolled' => count($voters) + count($without), 'eligible' => count($voters), 'without_email' => count($without)],
+        'voters' => $voters,
+        'without_email' => $without,
+    ]));
+}
+
+function levelRows(): array
+{
+    return [
+        ['email' => 'l1@zurcher.edu.mg', 'student_id' => 'A1', 'level' => 'licence'],
+        ['email' => 'l2@zurcher.edu.mg', 'student_id' => 'A2', 'level' => 'licence'],
+        ['email' => 'l3@zurcher.edu.mg', 'student_id' => 'A3', 'level' => 'licence'],
+        ['email' => 'm1@zurcher.edu.mg', 'student_id' => 'B1', 'level' => 'master'],
+        ['email' => 'm2@zurcher.edu.mg', 'student_id' => 'B2', 'level' => 'master'],
+        ['email' => 'inconnu@zurcher.edu.mg', 'student_id' => 'C1'],   // export plus ancien, sans niveau : compté en Licence
+    ];
+}
+
+it("l'aperçu filtre par niveau, et détaille Licence / Master pour toute la session", function () {
+    autoRegistrarLevels(levelRows(), [
+        ['student_id' => 'X1', 'name' => 'Sans Adresse Licence', 'reason' => 'missing', 'level' => 'licence'],
+        ['student_id' => 'X2', 'name' => 'Sans Adresse Master', 'reason' => 'other_domain', 'level' => 'master'],
+    ]);
+    $e = draftElection();
+    $token = adminToken();
+    $sync = fn (string $levels) => $this->withToken($token)->postJson("/api/admin/elections/{$e->id}/voters/sync", ['session_id' => 490, 'dry_run' => true, 'levels' => $levels]);
+
+    $sync('all')->assertOk()->assertJsonPath('data.total', 6)->assertJsonPath('data.without_email', 2)
+        ->assertJsonPath('data.by_level.licence.eligible', 4)->assertJsonPath('data.by_level.master.eligible', 2)
+        ->assertJsonPath('data.by_level.master.without_email', 1);
+
+    $r = $sync('master')->assertOk()->assertJsonPath('data.total', 2)->assertJsonPath('data.without_email', 1)
+        ->assertJsonPath('data.levels', 'master')
+        ->assertJsonPath('data.by_level.licence.eligible', 4);                       // le détail reste celui de toute la session
+    expect(array_column($r->json('data.without_email_list'), 'student_id'))->toBe(['X2']);
+
+    $sync('licence')->assertOk()->assertJsonPath('data.total', 4)->assertJsonPath('data.without_email', 1)
+        ->assertJsonPath('data.without_email_list.0.student_id', 'X1');
+
+    $this->postJson("/api/admin/elections/{$e->id}/voters/sync", ['session_id' => 490, 'levels' => 'doctorat'])->assertUnprocessable();
+});
+
+it('la synchronisation manuelle applique le niveau choisi et le consigne au journal', function () {
+    autoRegistrarLevels(levelRows());
+    $e = draftElection();
+
+    $this->withToken(adminToken())->postJson("/api/admin/elections/{$e->id}/voters/sync", ['session_id' => 490, 'levels' => 'master'])->assertOk();
+
+    expect($e->voters()->pluck('email')->sort()->values()->all())->toBe(['m1@zurcher.edu.mg', 'm2@zurcher.edu.mg']);
+    expect(AuditLog::query()->where('event', 'voters_synced')->firstOrFail()->payload['levels'])->toBe('master');
+});
+
+it('la synchronisation automatique respecte le niveau ; le premier réglage choisi par la commission passe le garde-fou de variation', function () {
+    autoRegistrarLevels(levelRows());
+    $e = draftElection();
+    $token = adminToken();
+
+    $this->withToken($token)->putJson("/api/admin/elections/{$e->id}/registrar/auto", ['enabled' => true, 'session_id' => 490, 'levels' => 'all'])
+        ->assertOk()->assertJsonPath('data.registrar.levels', 'all')->assertJsonPath('data.stats.registered', 6);
+
+    // Désactiver puis passer à « Master seulement » : −4 sur 6 dépasse le garde-fou (20 %), mais c'est un choix explicite.
+    $this->putJson("/api/admin/elections/{$e->id}/registrar/auto", ['enabled' => false])->assertOk();
+    $this->putJson("/api/admin/elections/{$e->id}/registrar/auto", ['enabled' => true, 'session_id' => 490, 'levels' => 'master'])
+        ->assertOk()->assertJsonPath('sync.status', 'synced')->assertJsonPath('data.registrar.levels', 'master')->assertJsonPath('data.stats.registered', 2);
+
+    // Les reprises suivantes (planificateur) gardent le niveau.
+    $this->artisan('elections:sync-registrar')->assertSuccessful();
+    expect($e->voters()->count())->toBe(2);
+});
