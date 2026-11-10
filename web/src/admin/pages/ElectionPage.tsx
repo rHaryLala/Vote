@@ -34,6 +34,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { AdminError, adminApi, type AdminElection, type Paginated } from '../api'
 import { ConfirmButton } from '../components/ConfirmButton'
+import { DeleteElections } from '../components/DeleteElections'
 import { ManualVoter } from '../components/ManualVoter'
 import { RegistrarSync } from '../components/RegistrarSync'
 import { StatusBadge } from '../components/StatusBadge'
@@ -746,22 +747,18 @@ export function ElectionPage() {
 
   const action = (path: string, success: string) => async () => {
     try {
-      await adminApi(`/elections/${id}/${path}`, { method: 'POST' })
+      const res = await adminApi<{ sync?: { status: string; message: string | null } }>(`/elections/${id}/${path}`, { method: 'POST' })
       toast.success(success)
+      // À l'ouverture, la dernière reprise automatique du registrar a pu échouer : le scrutin est ouvert quand même.
+      if (res?.sync?.status === 'error') {
+        toast.warning('Liste non mise à jour depuis le registrar', {
+          description: `${res.sync.message} La liste reste celle de la dernière synchronisation.`,
+          duration: 15_000,
+        })
+      }
       await qc.invalidateQueries({ queryKey: ['admin'] })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Action impossible')
-    }
-  }
-
-  const remove = async () => {
-    try {
-      await adminApi(`/elections/${id}`, { method: 'DELETE' })
-      toast.success('Scrutin supprimé')
-      await qc.invalidateQueries({ queryKey: ['admin', 'elections'] })
-      navigate('/admin')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Suppression impossible')
     }
   }
 
@@ -791,17 +788,20 @@ export function ElectionPage() {
           </div>
           {e && (
             <div className="flex flex-wrap gap-2">
+              <DeleteElections
+                items={[{ id: e.id, title: e.title, status: e.status, voters_count: e.stats.registered, voted_count: e.stats.voted }]}
+                onDeleted={async () => {
+                  await qc.invalidateQueries({ queryKey: ['admin'] })
+                  navigate('/admin')
+                }}
+                trigger={
+                  <Button variant="outline">
+                    <Trash2 /> Supprimer
+                  </Button>
+                }
+              />
               {e.status === 'draft' && (
                 <>
-                  <ConfirmButton
-                    variant="outline"
-                    title="Supprimer ce scrutin ?"
-                    description="Le brouillon et sa liste électorale seront supprimés définitivement."
-                    confirmLabel="Supprimer"
-                    onConfirm={remove}
-                  >
-                    <Trash2 /> Supprimer
-                  </ConfirmButton>
                   <ConfirmButton
                     title="Ouvrir le scrutin ?"
                     description={<OpenExplanation e={e} />}

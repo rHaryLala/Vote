@@ -27,6 +27,12 @@ it("refuse l'administration sans jeton, et avec un jeton d'électeur", function 
     $this->withToken($voterToken)->getJson('/api/admin/elections')->assertForbidden();
 });
 
+it("répond 401 (et non 500) sans jeton, même sans l'en-tête Accept: application/json", function () {
+    // Régression constatée en production : redirection vers une route « login » inexistante.
+    $this->get('/api/admin/elections')->assertUnauthorized();
+    $this->get('/api/admin/elections', ['Accept' => 'text/html'])->assertUnauthorized();
+});
+
 it('un jeton de la commission ne permet pas de voter', function () {
     draftElection(['status' => Election::STATUS_OPEN, 'opens_at' => now()->subHour()]);
 
@@ -137,18 +143,6 @@ it('ne montre aucun décompte à la commission avant la clôture', function () {
 
     $e->fresh()->finish();
     $this->withToken($token)->getJson("/api/admin/elections/{$e->id}")->assertJsonPath('data.tally.yes', 1);
-});
-
-it("ne supprime qu'un scrutin en brouillon", function () {
-    $token = adminToken();
-    $open = draftElection(['opens_at' => now()->subHour()]);
-    $open->voters()->create(['email' => 'a@zurcher.edu.mg']);
-    $open->start();
-    $this->withToken($token)->deleteJson("/api/admin/elections/{$open->id}")->assertStatus(409);
-
-    $draft = draftElection();
-    $this->withToken($token)->deleteJson("/api/admin/elections/{$draft->id}")->assertOk();
-    expect(Election::find($draft->id))->toBeNull();
 });
 
 it('liste les électeurs avec recherche et filtre « a voté »', function () {

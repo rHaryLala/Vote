@@ -66,11 +66,11 @@ class VoterImporter
      * @param  array<string, mixed>  $source  Session du registrar (consignée au journal d'audit)
      * @return array{valid: int, invalid: int, duplicate: int, added: int, removed: int, unchanged: int, manual: int, total: int}
      */
-    public function syncFromRows(Election $election, iterable $voters, array $source, bool $dryRun = false): array
+    public function syncFromRows(Election $election, iterable $voters, array $source, bool $dryRun = false, array $auditExtra = []): array
     {
         $this->assertDraft($election);
 
-        return $this->apply($election, $voters, $dryRun, Voter::SOURCE_REGISTRAR, 'voters_synced', ['source' => 'registrar', 'session' => $source]);
+        return $this->apply($election, $voters, $dryRun, Voter::SOURCE_REGISTRAR, 'voters_synced', ['source' => 'registrar', 'session' => $source] + $auditExtra);
     }
 
     private function assertDraft(Election $election): void

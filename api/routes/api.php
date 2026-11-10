@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Admin\AccountController;
 use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\AuthController as AdminAuthController;
+use App\Http\Controllers\Admin\CommissionUserController;
 use App\Http\Controllers\Admin\ElectionController as AdminElectionController;
 use App\Http\Controllers\Admin\RegistrarController;
 use App\Http\Controllers\Admin\VoterController;
@@ -35,6 +37,13 @@ Route::prefix('admin')->group(function () {
         Route::get('/me', [AdminAuthController::class, 'me']);
         Route::post('/logout', [AdminAuthController::class, 'logout']);
 
+        // Compte de la commission : mot de passe personnel, et gestion des membres.
+        Route::put('/account/password', [AccountController::class, 'changePassword'])->middleware('throttle:5,1');
+        Route::get('/users', [CommissionUserController::class, 'index']);
+        Route::post('/users', [CommissionUserController::class, 'store'])->middleware('throttle:10,1');
+        Route::post('/users/{user}/reset-password', [CommissionUserController::class, 'resetPassword'])->middleware('throttle:10,1');
+        Route::delete('/users/{user}', [CommissionUserController::class, 'destroy'])->middleware('throttle:10,1');
+
         Route::get('/elections', [AdminElectionController::class, 'index']);
         Route::post('/elections', [AdminElectionController::class, 'store']);
         Route::get('/elections/{election}', [AdminElectionController::class, 'show']);
@@ -51,6 +60,7 @@ Route::prefix('admin')->group(function () {
         Route::delete('/elections/{election}/voters/{voter}', [VoterController::class, 'destroy']);
         Route::get('/registrar/sessions', [RegistrarController::class, 'sessions']);
         Route::post('/elections/{election}/voters/sync', [RegistrarController::class, 'sync'])->middleware('throttle:10,1');
+        Route::put('/elections/{election}/registrar/auto', [RegistrarController::class, 'auto'])->middleware('throttle:10,1');
 
         Route::get('/audit', [AuditController::class, 'index']);
         Route::get('/audit/verify', [AuditController::class, 'verify']);

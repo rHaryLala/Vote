@@ -54,8 +54,9 @@ class ElectionDeleter
 
                 $election->delete(); // supprime en cascade la liste électorale et les bulletins
 
-                // Après la suppression : la clé étrangère du journal passe à NULL, l'identifiant reste dans le détail.
-                AuditLog::record('election_deleted', null, $summary);
+                // Le journal n'a aucune clé étrangère vers les scrutins (voir la migration detach_audit_logs) : cette entrée,
+                // comme toutes les anciennes du même scrutin, garde son identifiant et la chaîne d'empreintes reste intacte.
+                AuditLog::record('election_deleted', $election->id, $summary);
                 $summaries[] = $summary;
             }
         });

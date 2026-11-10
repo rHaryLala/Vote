@@ -118,6 +118,8 @@ export interface AdminElection {
   blank_counts_as_expressed: boolean
   quorum_percent: number | null
   results_published: boolean
+  public_visible: boolean
+  registrar: { auto_sync: boolean; session_id: number | null; synced_at: string | null; error: string | null }
   stats: { registered: number; voted: number; turnout_percent: number }
   tally: Tally | null
   locks: { content: boolean; dates: boolean; voters: boolean; voters_manual: boolean }
@@ -132,6 +134,7 @@ export interface ElectionRow {
   opens_at: string
   closes_at: string
   results_published: boolean
+  public_visible: boolean
   voters_count: number
   voted_count: number
 }

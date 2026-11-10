@@ -76,6 +76,15 @@ Un jeton d'électeur ne donne jamais accès à l'administration, et un jeton de 
   vote, l'ajout demande une confirmation et est inscrit au journal d'audit (heure, compte de la commission, empreinte de
   l'adresse — jamais l'adresse ni le nom en clair). On ne peut retirer qu'un ajout manuel qui n'a pas voté (ou n'importe
   quel électeur tant que le scrutin est en brouillon) ; le retrait révoque sa session.
+- **Suppression de scrutins** (un ou plusieurs, cases à cocher dans la liste, ou bouton « Supprimer » dans le détail) : possible pour
+  **tous les statuts**, mais **irréversible** — la liste électorale, les bulletins et les sessions de vote sont effacés. Un
+  brouillon demande une simple confirmation ; dès qu'un scrutin est ouvert ou clos, il faut taper `SUPPRIMER`. Tout ou rien
+  (un identifiant inconnu n'en supprime aucun). Le journal d'audit garde une entrée par suppression (titre, statut, nombre
+  d'inscrits, de votants et de bulletins ; jamais d'adresse ni de choix) et n'est **jamais modifié** par la suppression :
+  il n'a aucune clé étrangère vers les scrutins, sinon la chaîne d'empreintes se casserait.
+- **Ce que voit le public** : uniquement un scrutin **en cours**, ou **clos dont la commission a publié les résultats**. Un
+  brouillon, un scrutin clos non publié et un scrutin supprimé disparaissent du site (accueil, connexion, résultats) ; la
+  colonne « Site public » de la liste le montre. Un électeur peut toujours vérifier son reçu tant que le scrutin existe.
 - **Ouverture et clôture automatiques** : il faut d'abord **armer** le scrutin avec « Ouvrir le scrutin » (étape volontaire, avec
   confirmation). Une fois armé, le vote s'ouvre **tout seul à l'heure d'ouverture** et refuse tout bulletin à l'heure de
   clôture (le serveur compare l'heure à chaque bulletin ; l'écran des étudiants se met à jour à la seconde, sans recharger).

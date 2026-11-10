@@ -1,4 +1,4 @@
-import { ExternalLink, FileText, LogOut, Menu, ShieldCheck, Vote } from 'lucide-react'
+import { ExternalLink, FileText, LogOut, Menu, ShieldCheck, UserCog, Vote } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { adminApi, setAdminSession, useAdminSession } from './api'
+import { AccountPage } from './pages/AccountPage'
 import { AuditPage } from './pages/AuditPage'
 import { ContentPage } from './pages/ContentPage'
 import { ElectionPage } from './pages/ElectionPage'
@@ -24,6 +25,7 @@ const NAV = [
   { to: '/admin', label: 'Scrutins', icon: Vote, end: false, match: (p: string) => p === '/admin' || p.startsWith('/admin/scrutins') },
   { to: '/admin/contenu', label: 'Contenu des pages', icon: FileText, end: true },
   { to: '/admin/journal', label: "Journal d'audit", icon: ShieldCheck, end: true },
+  { to: '/admin/compte', label: 'Mon compte', icon: UserCog, end: true },
 ]
 
 async function logout() {
@@ -150,6 +152,7 @@ export default function AdminApp() {
               <Route path="scrutins/:id" element={<ElectionPage />} />
               <Route path="contenu" element={<ContentPage />} />
               <Route path="journal" element={<AuditPage />} />
+              <Route path="compte" element={<AccountPage />} />
               <Route path="*" element={<Navigate to="/admin" replace />} />
             </Routes>
           </Layout>

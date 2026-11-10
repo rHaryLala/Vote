@@ -37,6 +37,10 @@ const EVENTS: Record<string, string> = {
   login_refused: 'Connexion refusée (hors liste)',
   vote_cast: 'Bulletin déposé',
   content_updated: 'Contenu modifié',
+  admin_password_changed: 'Mot de passe modifié (commission)',
+  admin_password_reset: "Mot de passe d'un membre réinitialisé",
+  admin_user_created: 'Compte de la commission créé',
+  admin_user_deleted: 'Compte de la commission supprimé',
 }
 
 export function AuditPage() {

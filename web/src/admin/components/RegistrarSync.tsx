@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, DatabaseZap, Eye, Loader2, RefreshCw } from 'lucide-react'
+import { AlertTriangle, DatabaseZap, Eye, Loader2, RefreshCw, Timer } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -8,7 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { adminApi, type AdminElection } from '../api'
+import { fmt } from '../time'
 import { ConfirmButton } from './ConfirmButton'
 
 interface RegistrarSession {
@@ -73,9 +75,13 @@ export function RegistrarSync({ e }: { e: AdminElection }) {
   useEffect(() => {
     const list = sessions.data?.sessions
     if (sessionId || !list?.length) return
+    if (e.registrar.session_id && list.some((x) => x.id === e.registrar.session_id)) {
+      setSessionId(String(e.registrar.session_id))
+      return
+    }
     const def = list.find((s) => s.selected && s.enrolled > 0) ?? list.find((s) => s.enrolled > 0) ?? list[0]
     setSessionId(String(def.id))
-  }, [sessions.data, sessionId])
+  }, [sessions.data, sessionId, e.registrar.session_id])
 
   const sync = useMutation({
     mutationFn: (dryRun: boolean) =>
@@ -92,6 +98,21 @@ export function RegistrarSync({ e }: { e: AdminElection }) {
       toast.success('Liste électorale synchronisée', {
         description: `${data.valid} électeurs · ${data.added} ajoutés · ${data.removed} retirés`,
       })
+      void qc.invalidateQueries({ queryKey: ['admin'] })
+    },
+    onError: (err) => toast.error(err.message),
+  })
+
+  const auto = useMutation({
+    mutationFn: (enabled: boolean) =>
+      adminApi<{ sync: { status: string; message: string | null; added: number; removed: number } }>(`/elections/${e.id}/registrar/auto`, {
+        method: 'PUT',
+        body: { enabled, session_id: enabled ? Number(sessionId) : null },
+      }),
+    onSuccess: (res, enabled) => {
+      if (!enabled) toast.success('Synchronisation automatique désactivée')
+      else if (res.sync.status === 'error') toast.error('Activée, mais la première synchronisation a échoué', { description: res.sync.message ?? undefined })
+      else toast.success('Synchronisation automatique activée', { description: `Première reprise faite : +${res.sync.added} / −${res.sync.removed}.` })
       void qc.invalidateQueries({ queryKey: ['admin'] })
     },
     onError: (err) => toast.error(err.message),
@@ -164,6 +185,42 @@ export function RegistrarSync({ e }: { e: AdminElection }) {
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="grid gap-3 rounded-lg border p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="grid gap-1">
+              <Label htmlFor="auto-sync" className="flex items-center gap-2">
+                <Timer className="size-4" /> Synchronisation automatique
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Reprend les inscrits de la session choisie toutes les 15 minutes, tant que le scrutin est en brouillon, puis une dernière fois
+                à l'ouverture. Les électeurs ajoutés à la main sont conservés. Une erreur du registrar (liste vide, retrait massif) ne touche jamais
+                la liste.
+              </p>
+            </div>
+            <Switch
+              id="auto-sync"
+              checked={e.registrar.auto_sync}
+              disabled={auto.isPending || (!e.registrar.auto_sync && !sessionId)}
+              onCheckedChange={(v) => auto.mutate(v)}
+            />
+          </div>
+          {e.registrar.auto_sync && (
+            <p className="text-xs text-muted-foreground">
+              {e.registrar.synced_at ? <>Dernier contrôle : {fmt(e.registrar.synced_at, true)}.</> : 'Premier contrôle en attente.'}
+              {e.registrar.session_id && sessionId && String(e.registrar.session_id) !== sessionId && (
+                <> La session suivie est la n° {e.registrar.session_id} : désactivez puis réactivez pour changer.</>
+              )}
+            </p>
+          )}
+          {e.registrar.error && (
+            <Alert variant="destructive">
+              <AlertTriangle />
+              <AlertTitle>Dernière synchronisation automatique refusée</AlertTitle>
+              <AlertDescription>{e.registrar.error}</AlertDescription>
+            </Alert>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2">

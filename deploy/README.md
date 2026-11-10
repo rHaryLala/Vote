@@ -1,5 +1,38 @@
 # Déploiement — VPS Ubuntu + nginx
 
+## Procédure réelle (VPS de l'UAZ, `sa.zurcher.edu.mg`) — sans Git, en deux temps
+
+Le serveur (nginx 1.24, PHP 8.3-FPM, MariaDB 10.11, Certbot) héberge d'autres sites ; Vote SA n'en touche aucun.
+Le DNS de `zurcher.edu.mg` est chez Hostinger (`*.dns-parking.com`) : l'enregistrement `A sa → 191.215.37.182` se crée là-bas,
+pas sur le VPS. Le certificat Let's Encrypt de `sa.zurcher.edu.mg` existe déjà (renouvelé par `certbot.timer`).
+
+**1. Depuis le poste de développement** (sans root) — construit le site, l'envoie dans `~/sa-release` du serveur, un dossier que
+nginx ne sert PAS (jamais de secret ni de version inachevée accessible), et installe les dépendances PHP :
+
+```bash
+bash deploy/release.sh          # hôte SSH : alias « registrar-vps » (DEPLOY_HOST=… pour un autre)
+```
+
+**2. Sur le serveur** (root requis : base de données, nginx, droits, cron) :
+
+```bash
+ssh registrar-vps
+sudo bash ~/sa-release/deploy/server-setup.sh [adresse-du-compte-commission]   # défaut : hary.rab@zurcher.edu.mg
+```
+
+`server-setup.sh` crée la base `sa_vote` et son utilisateur (mot de passe aléatoire, écrit seulement dans `/var/www/sa/api/.env`),
+installe les fichiers dans `/var/www/sa`, lance les migrations, remplace le site nginx par
+`deploy/nginx/sa.zurcher.edu.mg.prod.conf` (**en gardant le certificat existant**), installe le cron de clôture automatique,
+crée le compte de la commission (mot de passe affiché une seule fois) et vérifie le résultat. Il sauvegarde l'ancienne config nginx
+et la **restaure** si `nginx -t` échoue, refuse d'écraser une base non vide, et conserve le `.env` lors des mises à jour.
+**Pour mettre à jour** : relancer les deux commandes (le `.env`, la base et les photos ne sont pas touchés).
+
+Retour arrière nginx : `cp /etc/nginx/sites-available/sa.zurcher.edu.mg.bak-<date> /etc/nginx/sites-available/sa.zurcher.edu.mg && nginx -t && systemctl reload nginx`.
+
+---
+
+## Procédure générique (autre serveur, avec Git) — scripts `provision.sh` et `deploy.sh`
+
 > Ces fichiers ont été **écrits et relus, pas exécutés** sur le VPS. La syntaxe nginx et le routage ont été validés
 > en local (nginx 1.28, test de chaque route) ; le reste est à essayer une première fois **hors période de vote**.
 
@@ -63,6 +96,7 @@ Voir `deploy/registrar/README.md` : un fichier à copier dans le registrar, un j
 - [ ] **Test de charge** (k6) : plusieurs centaines de votes simultanés, aucun doublon (`voters.has_voted` = nombre de `ballots`).
 - [ ] Sauvegarde MySQL chiffrée, copiée **hors du VPS**, et **restauration testée**.
 - [ ] **Scrutin armé** (« Ouvrir le scrutin » cliqué, statut « Ouvert · hors horaires ») AVANT l'heure d'ouverture : sinon rien ne s'ouvre.
+- [ ] Avant un vrai scrutin : **supprimer les scrutins de test** (liste des scrutins → cocher → Supprimer) et vérifier que le site public n'affiche rien d'autre que le bon scrutin.
 - [ ] `php artisan schedule:list` montre `elections:close-expired` ; le cron tourne.
 - [ ] Journal d'audit : bouton « Vérifier l'intégrité » dans l'administration.
 

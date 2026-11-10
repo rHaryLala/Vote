@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Election;
 use App\Services\ElectionDeleter;
+use App\Services\RegistrarAutoSync;
 use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -117,12 +118,15 @@ class ElectionController extends Controller
         });
     }
 
-    public function open(Election $election): JsonResponse
+    public function open(Election $election, RegistrarAutoSync $auto): JsonResponse
     {
-        return $this->guard(function () use ($election) {
+        return $this->guard(function () use ($election, $auto) {
+            // La liste se fige à l'ouverture : dernière reprise automatique du registrar juste avant (si activée).
+            // Une erreur n'empêche pas d'ouvrir (la commission en est avertie), la liste reste celle de la dernière synchronisation.
+            $sync = $auto->run($election);
             $election->start();
 
-            return response()->json(['data' => self::present($election->fresh())]);
+            return response()->json(['data' => self::present($election->fresh()), 'sync' => $sync]);
         });
     }
 
@@ -212,6 +216,13 @@ class ElectionController extends Controller
             'quorum_percent' => $election->quorum_percent,
             'results_published' => $election->results_published,
             'public_visible' => $election->isVisible(),
+            'registrar' => [
+                'auto_sync' => (bool) $election->registrar_auto_sync,
+                'session_id' => $election->registrar_session_id,
+                'levels' => $election->registrar_levels ?: 'all',
+                'synced_at' => $election->registrar_synced_at?->toIso8601ZuluString(),
+                'error' => $election->registrar_sync_error,
+            ],
             'stats' => [
                 'registered' => $registered,
                 'voted' => $voted,

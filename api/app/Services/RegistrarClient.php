@@ -45,7 +45,7 @@ class RegistrarClient
     /**
      * Étudiants inscrits à une session.
      *
-     * @return array{session: array<string, mixed>, counts: array{enrolled: int, eligible: int, without_email: int}, voters: list<array{email: string, student_id: string|null}>}
+     * @return array{session: array<string, mixed>, counts: array{enrolled: int, eligible: int, without_email: int}, voters: list<array{email: string, student_id: string|null, level: string}>, without_email: list<array{student_id: string, name: string, reason: string, level: string}>}
      *
      * @throws RegistrarException
      */
@@ -71,8 +71,56 @@ class RegistrarClient
             'voters' => array_values(array_map(fn ($v) => [
                 'email' => (string) ($v['email'] ?? ''),
                 'student_id' => isset($v['student_id']) ? (string) $v['student_id'] : null,
+                'level' => self::normalizeLevel($v['level'] ?? null),
             ], array_filter($data['voters'], 'is_array'))),
+            // Inscrits à corriger dans le registrar (absent d'un export plus ancien : liste vide).
+            'without_email' => array_values(array_map(fn ($v) => [
+                'student_id' => mb_substr((string) ($v['student_id'] ?? ''), 0, 50),
+                'name' => mb_substr((string) ($v['name'] ?? ''), 0, 255),
+                'reason' => ($v['reason'] ?? '') === 'other_domain' ? 'other_domain' : 'missing',
+                'level' => self::normalizeLevel($v['level'] ?? null),
+            ], array_filter(is_array($data['without_email'] ?? null) ? $data['without_email'] : [], 'is_array'))),
         ];
+    }
+
+    public const LEVELS = ['all', 'licence', 'master'];
+
+    /**
+     * Niveau d'un étudiant : « master », sinon « licence ». La remise à niveau (année d'étude 0) est comptée avec la
+     * Licence ; un export plus ancien, sans niveau, compte tout le monde en Licence (d'où l'intérêt de mettre l'export à jour).
+     */
+    public static function normalizeLevel(mixed $level): string
+    {
+        return $level === 'master' ? 'master' : 'licence';
+    }
+
+    /**
+     * Restreint un export à un niveau (« licence », « master » ou « all »), et calcule le détail par niveau sur
+     * l'export COMPLET : la commission voit ce que chaque choix donnerait.
+     *
+     * @param  array<string, mixed>  $export  Résultat de voters()
+     * @return array<string, mixed> L'export filtré, avec les compteurs ajustés et « by_level »
+     */
+    public static function forLevels(array $export, string $levels): array
+    {
+        $by = ['licence' => ['eligible' => 0, 'without_email' => 0], 'master' => ['eligible' => 0, 'without_email' => 0]];
+        foreach ($export['voters'] as $v) {
+            $by[$v['level']]['eligible']++;
+        }
+        foreach ($export['without_email'] as $v) {
+            $by[$v['level']]['without_email']++;
+        }
+
+        if ($levels !== 'all') {
+            $export['voters'] = array_values(array_filter($export['voters'], fn ($v) => $v['level'] === $levels));
+            $export['without_email'] = array_values(array_filter($export['without_email'], fn ($v) => $v['level'] === $levels));
+            $export['counts']['eligible'] = count($export['voters']);
+            $export['counts']['without_email'] = count($export['without_email']);
+            $export['counts']['enrolled'] = $export['counts']['eligible'] + $export['counts']['without_email'];
+        }
+        $export['by_level'] = $by;
+
+        return $export;
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use DomainException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
@@ -78,6 +79,8 @@ class Election extends Model
             'blank_counts_as_expressed' => 'boolean',
             'results_published' => 'boolean',
             'quorum_percent' => 'integer',
+            'registrar_auto_sync' => 'boolean',
+            'registrar_synced_at' => 'datetime',
         ];
     }
 
@@ -176,7 +179,7 @@ class Election extends Model
      *  - un scrutin CLOS dont la commission a PUBLIÉ les résultats.
      * Jamais un brouillon, ni un scrutin clos dont les résultats ne sont pas publiés. Un scrutin supprimé n'existe plus.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
+     * @param  Builder<self>  $query
      */
     public function scopeVisible($query): void
     {

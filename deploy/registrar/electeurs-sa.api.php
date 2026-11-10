@@ -20,8 +20,9 @@
    adresse @zurcher.edu.mg pour pouvoir se connecter avec Google : les autres sont
    comptés (« without_email ») mais jamais renvoyés.
 
-   LECTURE SEULE IMPOSÉE PAR MYSQL (connexion « READ ONLY » : toute écriture échouerait), aucun mot de passe,
-   aucune donnée hors e-mail + matricule.
+   LECTURE SEULE IMPOSÉE PAR MYSQL (connexion « READ ONLY » : toute écriture échouerait), aucun mot de passe.
+   Données renvoyées : e-mail + matricule des électeurs ; pour les inscrits SANS adresse institutionnelle seulement
+   (à corriger dans le registrar) : matricule, nom et motif. Chaque étudiant porte son niveau (licence | master | remise) — jamais l'adresse personnelle.
    ========================================================================== */
 
 // Racine du registrar : le dossier parent de app/ (surchargeable pour les tests).
@@ -95,6 +96,16 @@ try {
 $domaine = defined('SA_VOTE_EXPORT_DOMAIN') ? (string) SA_VOTE_EXPORT_DOMAIN : 'zurcher.edu.mg';
 $action = (string) ($_GET['action'] ?? 'voters');
 
+/**
+ * Niveau de l'étudiant, selon l'année d'étude de sa fiche (même convention que le registrar) :
+ * 0 = remise à niveau, 1 à 3 = Licence, 4 et plus = Master.
+ */
+function exportNiveau($anneeEtude): string
+{
+	$n = (int) $anneeEtude;
+	return $n >= 4 ? 'master' : ($n === 0 ? 'remise' : 'licence');
+}
+
 /** Nombre d'étudiants distincts inscrits à une session (lignes non supprimées). */
 function exportInscrits(PDO $dtb, int $sessionId): int
 {
@@ -148,7 +159,8 @@ try {
 	// Fiche active de chaque étudiant (comme partout dans le registrar : non supprimée d'abord, puis la plus ancienne).
 	// LEFT JOIN : une inscription sans fiche étudiante n'est pas ignorée en silence, elle est comptée « sans adresse ».
 	$q = $dtb->prepare(
-		'SELECT i.student_id, LOWER(TRIM(e.student_email)) AS email
+		'SELECT i.student_id, LOWER(TRIM(e.student_email)) AS email, e.annee_etude,
+		        TRIM(CONCAT_WS(CHAR(32), e.student_prenom, e.student_nom)) AS full_name
 		   FROM t_2024_inscription_session i
 		   LEFT JOIN tbl_2024_etudiant e ON e.id = (
 		        SELECT e2.id FROM tbl_2024_etudiant e2
@@ -158,9 +170,9 @@ try {
 	);
 	$q->execute(['s' => $sessionId]);
 
-	$electeurs = [];      // email => matricule (dédoublonné : une même inscription peut exister en double)
+	$electeurs = [];      // email => [matricule, niveau] (dédoublonné : une même inscription peut exister en double)
 	$etudiants = [];      // matricules distincts
-	$sansAdresse = [];    // matricules sans adresse institutionnelle valide
+	$sansAdresse = [];    // matricule => [nom, motif] pour ceux sans adresse institutionnelle valide
 	$motif = "/^[a-z0-9._%+'-]+@" . preg_quote($domaine, '/') . '$/';
 
 	foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) {
@@ -168,19 +180,29 @@ try {
 		$etudiants[$matricule] = true;
 		$email = (string) $r['email'];
 		if (preg_match($motif, $email) === 1) {
-			$electeurs[$email] ??= $matricule;
+			$electeurs[$email] ??= [$matricule, exportNiveau($r['annee_etude'] ?? null)];
 		} else {
-			$sansAdresse[$matricule] = true;
+			// Motif seulement (« aucune adresse » / « adresse hors domaine ») : on ne renvoie jamais l'adresse personnelle.
+			$sansAdresse[$matricule] ??= [
+				'student_id' => $matricule,
+				'name' => trim((string) ($r['full_name'] ?? '')),
+				'reason' => $email === '' ? 'missing' : 'other_domain',
+				'level' => exportNiveau($r['annee_etude'] ?? null),
+			];
 		}
 	}
 	// Un étudiant dont une inscription a une adresse valide n'est pas « sans adresse ».
-	$avecAdresse = array_flip(array_values($electeurs));
+	$avecAdresse = array_flip(array_column($electeurs, 0));
 	$sansAdresse = array_diff_key($sansAdresse, $avecAdresse);
+	// Liste à corriger dans le registrar, par ordre alphabétique (plafonnée : le nombre exact reste dans counts).
+	$aCorriger = array_values($sansAdresse);
+	usort($aCorriger, static fn(array $a, array $b): int => strcasecmp($a['name'], $b['name']) ?: strcmp($a['student_id'], $b['student_id']));
+	$aCorriger = array_slice($aCorriger, 0, 2000);
 
 	ksort($electeurs);
 	$liste = [];
-	foreach ($electeurs as $email => $matricule) {
-		$liste[] = ['email' => $email, 'student_id' => $matricule];
+	foreach ($electeurs as $email => [$matricule, $niveau]) {
+		$liste[] = ['email' => $email, 'student_id' => $matricule, 'level' => $niveau];
 	}
 
 	exportRepondre([
@@ -197,6 +219,7 @@ try {
 			'without_email' => count($sansAdresse),
 		],
 		'voters' => $liste,
+		'without_email' => $aCorriger,
 	]);
 } catch (Throwable $e) {
 	error_log('[export Vote SA] ' . $e->getMessage());

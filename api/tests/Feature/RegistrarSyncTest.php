@@ -16,9 +16,9 @@ function configureRegistrar(): void
 }
 
 /** Simule l'export du registrar : sessions et liste d'étudiants. */
-function fakeRegistrar(array $voters = [], array $counts = ['enrolled' => 0, 'eligible' => 0, 'without_email' => 0], int $status = 200): void
+function fakeRegistrar(array $voters = [], array $counts = ['enrolled' => 0, 'eligible' => 0, 'without_email' => 0], int $status = 200, array $withoutEmail = []): void
 {
-    Http::fake(function (Request $request) use ($voters, $counts, $status) {
+    Http::fake(function (Request $request) use ($voters, $counts, $status, $withoutEmail) {
         if ($status !== 200) {
             return Http::response(['code' => 'x', 'message' => 'Erreur'], $status);
         }
@@ -33,6 +33,7 @@ function fakeRegistrar(array $voters = [], array $counts = ['enrolled' => 0, 'el
             'session' => ['id' => 490, 'name' => 'Premier semestre', 'year' => '2026 - 2027', 'semester' => 1],
             'counts' => $counts,
             'voters' => $voters,
+            'without_email' => $withoutEmail,
         ]);
     });
 }
@@ -72,6 +73,7 @@ it('simule la synchronisation : montre ce qui change sans rien écrire', functio
     fakeRegistrar(
         [['email' => 'reste@zurcher.edu.mg', 'student_id' => 'S1'], ['email' => 'nouveau@zurcher.edu.mg', 'student_id' => 'S2']],
         ['enrolled' => 3, 'eligible' => 2, 'without_email' => 1],
+        withoutEmail: [['student_id' => '30023MI', 'name' => 'Hary Lala RABENAMANA', 'reason' => 'missing', 'adresse_perso' => 'ne.doit.pas.sortir@gmail.com']],
     );
 
     $this->withToken(adminToken())->postJson("/api/admin/elections/{$e->id}/voters/sync", ['session_id' => 490, 'dry_run' => true])
@@ -82,6 +84,10 @@ it('simule la synchronisation : montre ce qui change sans rien écrire', functio
         ->assertJsonPath('data.removed', 1)
         ->assertJsonPath('data.unchanged', 1)
         ->assertJsonPath('data.without_email', 1)
+        ->assertJsonPath('data.without_email_list.0.student_id', '30023MI')
+        ->assertJsonPath('data.without_email_list.0.name', 'Hary Lala RABENAMANA')
+        ->assertJsonPath('data.without_email_list.0.reason', 'missing')
+        ->assertJsonMissingPath('data.without_email_list.0.adresse_perso')
         ->assertJsonPath('data.enrolled', 3)
         ->assertJsonPath('data.session.year', '2026 - 2027');
 

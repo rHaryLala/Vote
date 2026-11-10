@@ -24,7 +24,34 @@ lecture seule, protégé par un jeton, sans jamais utiliser un compte du registr
 - **Lecture seule imposée par MySQL** (`SET SESSION TRANSACTION READ ONLY` sur une connexion propre à l'export : une écriture
   échouerait, même par erreur de code future), aucun mot de passe, aucune donnée hors adresse et matricule.
 
-## Installation dans le registrar (à relire avant de déployer)
+## Installation rapide sur le VPS de l'UAZ (le registrar et le vote sont sur le même serveur)
+
+```bash
+ssh registrar-vps
+bash ~/sa-release/deploy/registrar/install-on-vps.sh      # sans sudo
+sudo bash ~/sa-release/deploy/server-setup.sh              # reconstruit les caches de l'application de vote
+```
+
+Le script fait les étapes 1 à 5 ci-dessous : il copie l'export dans `registrar/app/`, génère le jeton (jamais affiché),
+ajoute son **empreinte** à `registrar/data/config.secret.php` (après sauvegarde), écrit URL + jeton dans `api/.env`, puis
+teste l'export (sans jeton, mauvais jeton, bon jeton). Il s'arrête sans rien changer si un jeton existe déjà, et affiche
+les commandes de retour arrière.
+
+## Synchronisation automatique
+
+Dans l'administration (scrutin en brouillon → **Liste électorale**), l'interrupteur **Synchronisation automatique** :
+
+- reprend les inscrits de la session choisie **toutes les 15 minutes** (planificateur `elections:sync-registrar`, lancé par
+  `/etc/cron.d/sa-vote`) tant que le scrutin est en brouillon, et **une dernière fois à l'ouverture** du scrutin ;
+- conserve les électeurs ajoutés à la main ;
+- n'écrit rien (ni entrée au journal d'audit) quand la liste est déjà à jour ; sinon, `voters_synced` est journalisé avec
+  `trigger: auto` ;
+- **garde-fous** : un export sans aucun électeur, ou qui retirerait plus de 20 % de la liste (et plus de 10 personnes), est
+  refusé. La liste n'est alors pas touchée, l'erreur s'affiche dans l'administration, et la synchronisation manuelle (avec
+  aperçu) permet de confirmer un changement voulu ;
+- s'arrête d'elle-même à l'ouverture : la liste est ensuite figée.
+
+## Installation dans le registrar, étape par étape (à relire avant de déployer)
 
 1. **Copier** `electeurs-sa.api.php` dans `registrar/app/` sur le serveur (même dossier que `adresses-google.api.php`).
    Vérifier qu'il est joignable : `curl -i https://registrar.zurcher.edu.mg/app/electeurs-sa.api.php` doit répondre
