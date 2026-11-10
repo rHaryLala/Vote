@@ -11,7 +11,7 @@
 #   3. renseigne REGISTRAR_EXPORT_URL et REGISTRAR_EXPORT_TOKEN dans /var/www/sa/api/.env (sauvegardé avant) ;
 #   4. teste l'export (sans jeton, mauvais jeton, bon jeton) et affiche les sessions trouvées.
 #
-# Relançable : si le jeton existe déjà dans le registrar, le script s'arrête sans rien changer.
+# Relançable : si le jeton existe déjà, seul le fichier d'export est mis à jour (le jeton et le .env ne sont pas touchés).
 # Retour arrière : voir la fin du script.
 set -euo pipefail
 
@@ -29,17 +29,27 @@ die() { echo "ERREUR : $*" >&2; exit 1; }
 [ -w "$REGISTRAR/app" ] && [ -w "$REGISTRAR/data/config.secret.php" ] && [ -w "$SA_API/.env" ] \
   || die "droits d'écriture insuffisants (ce script se lance avec votre compte, pas avec sudo)."
 
-if grep -q SA_VOTE_EXPORT_TOKEN_SHA256 "$REGISTRAR/data/config.secret.php"; then
-  echo "Un jeton est déjà défini dans le registrar : rien n'est modifié."
-  echo "Pour le renouveler, retirez la ligne SA_VOTE_EXPORT_TOKEN_SHA256 de $REGISTRAR/data/config.secret.php puis relancez."
-  exit 0
-fi
-
 echo "==> 1/4 Export du registrar"
 sed 's/\r$//' "$SRC" > "/tmp/electeurs-sa.$STAMP.php"
 php -l "/tmp/electeurs-sa.$STAMP.php" >/dev/null
-install -m 664 -g www-data "/tmp/electeurs-sa.$STAMP.php" "$REGISTRAR/app/electeurs-sa.api.php"
+DEST="$REGISTRAR/app/electeurs-sa.api.php"
+[ -f "$DEST" ] && cp -p "$DEST" "$DEST.bak-$STAMP"
+install -m 664 -g www-data "/tmp/electeurs-sa.$STAMP.php" "$DEST"
 rm -f "/tmp/electeurs-sa.$STAMP.php"
+
+# Un jeton existe déjà : on met seulement l'export à jour (nouvelle version), sans toucher au jeton ni au .env.
+if grep -q SA_VOTE_EXPORT_TOKEN_SHA256 "$REGISTRAR/data/config.secret.php"; then
+  echo "    Export mis à jour (ancienne version : $DEST.bak-$STAMP)."
+  echo "    Un jeton est déjà défini : il n'est pas modifié."
+  EXISTING=$(grep -E '^REGISTRAR_EXPORT_TOKEN=' "$SA_API/.env" | cut -d= -f2- || true)
+  if [ -n "$EXISTING" ]; then
+    st=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $EXISTING" "$URL?action=sessions")
+    echo "    test avec le jeton existant : HTTP $st  (200 attendu)"
+  fi
+  echo "Retour arrière : cp -p $DEST.bak-$STAMP $DEST"
+  exit 0
+fi
+
 code=$(curl -s -o /dev/null -w '%{http_code}' "$URL")
 echo "    sans jeton configuré : HTTP $code (503 attendu : export désactivé par défaut)"
 [ "$code" = 503 ] || die "réponse inattendue ($code) : le fichier n'est pas servi par nginx comme prévu. Rien d'autre n'a été modifié."

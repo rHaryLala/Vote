@@ -4,7 +4,7 @@ export interface ElectionInfo {
   id: number
   title: string
   question: string
-  candidate: { name: string; title: string | null; photo: string | null; bio: string | null; program: string[] }
+  candidate: { name: string; gender?: 'm' | 'f'; title: string | null; photo: string | null; bio: string | null; program: string[] }
   status: 'draft' | 'open' | 'closed'
   is_open: boolean
   opens_at: string

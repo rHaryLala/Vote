@@ -55,11 +55,11 @@ export function ResultsView() {
           transition={{ delay: 0.5 }}
           className={`flex flex-col justify-center p-6 md:border-r md:border-line md:p-10 ${r.accepted ? 'bg-brand text-white' : 'brackets bg-night text-white'}`}
         >
-          <p className={`label ${r.accepted ? 'text-white/70' : 'text-white/60'}`}>Décision</p>
+          <p className={`label ${r.accepted ? 'text-white/70' : 'text-white/60'}`}>{t.text('results', 'verdict_label')}</p>
           <p className="mt-3 font-display text-3xl uppercase leading-[0.95] md:text-5xl">
             {data.election.candidate.name}
             <br />
-            {r.accepted ? t.text('results', 'accepted') : t.text('results', 'rejected')}
+            {t.text('results', (r.accepted ? 'accepted' : 'rejected') + (data.election.candidate.gender === 'f' ? '_f' : ''))}
           </p>
           {!r.quorum_reached && r.quorum_percent !== null && (
             <p className="mt-3 text-sm opacity-80">Le quorum de participation ({r.quorum_percent} %) n'est pas atteint.</p>

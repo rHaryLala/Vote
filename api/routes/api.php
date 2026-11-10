@@ -50,6 +50,7 @@ Route::prefix('admin')->group(function () {
         Route::put('/elections/{election}', [AdminElectionController::class, 'update']);
         Route::post('/elections/bulk-delete', [AdminElectionController::class, 'bulkDestroy'])->middleware('throttle:10,1');
         Route::post('/elections/{election}/photo', [AdminElectionController::class, 'photo']);
+        Route::put('/elections/{election}/announce', [AdminElectionController::class, 'announce']);
         Route::post('/elections/{election}/open', [AdminElectionController::class, 'open']);
         Route::post('/elections/{election}/close', [AdminElectionController::class, 'close']);
         Route::post('/elections/{election}/publish', [AdminElectionController::class, 'publish']);

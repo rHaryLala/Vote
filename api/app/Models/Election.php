@@ -38,7 +38,7 @@ class Election extends Model
             $status = $election->getOriginal('status');
 
             if ($status !== self::STATUS_DRAFT && $election->isDirty(self::FROZEN_AFTER_DRAFT)) {
-                throw new DomainException('Le scrutin est ouvert ou clos : la question, le candidat et la règle d\'acceptation ne peuvent plus être modifiés.');
+                throw new DomainException('Le scrutin est ouvert ou clos : la question, le candidat et la règle d\'élection ne peuvent plus être modifiés.');
             }
 
             if ($election->isDirty(self::DATES)) {
@@ -80,6 +80,7 @@ class Election extends Model
             'results_published' => 'boolean',
             'quorum_percent' => 'integer',
             'registrar_auto_sync' => 'boolean',
+            'announced' => 'boolean',
             'registrar_synced_at' => 'datetime',
         ];
     }
@@ -185,6 +186,8 @@ class Election extends Model
     {
         $query->where(function ($q) {
             $q->where('status', self::STATUS_OPEN)
+                // Brouillon « annoncé » : la commission montre le candidat avant l'ouverture (sans possibilité de voter).
+                ->orWhere(fn ($draft) => $draft->where('status', self::STATUS_DRAFT)->where('announced', true))
                 ->orWhere(fn ($closed) => $closed->where('status', self::STATUS_CLOSED)->where('results_published', true));
         });
     }
@@ -192,6 +195,7 @@ class Election extends Model
     public function isVisible(): bool
     {
         return $this->status === self::STATUS_OPEN
+            || ($this->status === self::STATUS_DRAFT && $this->announced)
             || ($this->status === self::STATUS_CLOSED && $this->results_published);
     }
 

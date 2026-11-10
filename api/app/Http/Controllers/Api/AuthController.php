@@ -35,6 +35,14 @@ class AuthController extends Controller
             ], 404);
         }
 
+        // Un scrutin seulement « annoncé » (brouillon) n'est pas ouvert : la liste électorale peut encore changer.
+        if ($election->status === Election::STATUS_DRAFT) {
+            return response()->json([
+                'code' => 'not_open_yet',
+                'message' => "Le vote n'est pas encore ouvert. La connexion sera possible à l'ouverture du scrutin.",
+            ], 409);
+        }
+
         $voter = $election->voters()->where('email', $identity['email'])->first();
         if (! $voter) {
             AuditLog::record('login_refused', $election->id);

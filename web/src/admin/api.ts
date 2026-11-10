@@ -107,6 +107,7 @@ export interface AdminElection {
   title: string
   question: string
   candidate_name: string
+  candidate_gender: 'm' | 'f'
   candidate_title: string | null
   candidate_bio: string | null
   candidate_program: string | null
@@ -119,7 +120,9 @@ export interface AdminElection {
   quorum_percent: number | null
   results_published: boolean
   public_visible: boolean
-  registrar: { auto_sync: boolean; session_id: number | null; synced_at: string | null; error: string | null }
+  /** Brouillon dont le candidat est montré sur le site avant l'ouverture. */
+  announced: boolean
+  registrar: { auto_sync: boolean; session_id: number | null; levels: 'all' | 'licence' | 'master'; synced_at: string | null; error: string | null }
   stats: { registered: number; voted: number; turnout_percent: number }
   tally: Tally | null
   locks: { content: boolean; dates: boolean; voters: boolean; voters_manual: boolean }

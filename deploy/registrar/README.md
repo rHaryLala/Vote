@@ -51,6 +51,17 @@ Dans l'administration (scrutin en brouillon → **Liste électorale**), l'interr
   aperçu) permet de confirmer un changement voulu ;
 - s'arrête d'elle-même à l'ouverture : la liste est ensuite figée.
 
+## Niveaux (Licence / Master) et étudiants sans adresse
+
+- **Niveaux concernés** : Licence et Master, Licence seulement, ou Master seulement (aperçu, synchronisation manuelle et
+  synchronisation automatique). Le niveau vient de l'**année d'étude** de la fiche de l'étudiant dans le registrar
+  (`annee_etude` : 4 et plus = Master ; 1 à 3 = Licence ; 0 = remise à niveau, **comptée avec la Licence**). L'aperçu détaille
+  toujours Licence et Master pour la session entière.
+- **Étudiants sans adresse @zurcher.edu.mg** : l'aperçu les liste (matricule, nom, niveau, problème), avec un export CSV pour
+  les transmettre au registrar. Seul le motif est renvoyé (aucune adresse / adresse hors domaine) : jamais une adresse personnelle.
+- Ces deux fonctions exigent la **dernière version** de `electeurs-sa.api.php` : relancer `install-on-vps.sh` met l'export à jour
+  (sans toucher au jeton). Avec un ancien export, tout le monde est compté en Licence et la liste des noms est absente.
+
 ## Installation dans le registrar, étape par étape (à relire avant de déployer)
 
 1. **Copier** `electeurs-sa.api.php` dans `registrar/app/` sur le serveur (même dossier que `adresses-google.api.php`).

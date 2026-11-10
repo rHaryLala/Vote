@@ -9,6 +9,17 @@ interface ElectionPayload {
   server_time: string
 }
 
+/** Délai pendant lequel une donnée en cache est tenue pour à jour (aligné sur le staleTime du client de requêtes). */
+const FRESH_MS = 15_000
+
+/**
+ * Vrai si la donnée vient d'être confirmée par le serveur (récupérée depuis l'ouverture de l'écran, ou il y a quelques
+ * secondes). Hors ligne, l'application affiche l'état en cache : il ne doit pas servir à prendre une décision
+ * (par exemple fermer une session) tant que le serveur ne l'a pas confirmé.
+ */
+export const isConfirmed = (q: { isFetchedAfterMount: boolean; dataUpdatedAt: number }) =>
+  q.isFetchedAfterMount || Date.now() - q.dataUpdatedAt < FRESH_MS
+
 /** Scrutin courant (public). L'écart avec l'horloge du serveur sert à afficher des comptes à rebours justes. */
 export function useElection() {
   const query = useQuery({

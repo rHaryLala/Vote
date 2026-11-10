@@ -10,8 +10,9 @@ import type { Choice } from './types'
  * n'a pas répondu. L'envoi est idempotent côté serveur : renvoyer ne crée jamais de second vote.
  * Un seul bulletin peut être en attente (on n'écrase jamais un bulletin déjà mis en file).
  *
- * Les données sont rangées PAR ÉLECTEUR (clé = adresse) : sur un appareil partagé, un étudiant ne voit
- * jamais le bulletin ni le reçu d'un autre.
+ * Les données sont rangées PAR ÉLECTEUR (adresse) ET PAR SCRUTIN : sur un appareil partagé, un étudiant ne voit
+ * jamais le bulletin ni le reçu d'un autre ; et le reçu d'un scrutin passé n'est jamais pris pour celui du
+ * scrutin en cours (« déjà voté » à tort), ni écrasé par lui : on garde un reçu par scrutin.
  */
 export interface PendingVote {
   choice: Choice
@@ -27,15 +28,36 @@ export interface StoredReceipt {
   electionId: number
 }
 
-const pendingKey = (email: string) => `sa.pending:${email}`
-const receiptKey = (email: string) => `sa.receipt:${email}`
+const pendingKey = (email: string, electionId: number) => `sa.pending:${email}:${electionId}`
+const receiptKey = (email: string, electionId: number) => `sa.receipt:${email}:${electionId}`
+// Anciennes clés (une seule place par adresse, avant la prise en compte du scrutin) : lues seulement si elles
+// concernent bien ce scrutin, jamais réécrites.
+const legacyPendingKey = (email: string) => `sa.pending:${email}`
+const legacyReceiptKey = (email: string) => `sa.receipt:${email}`
 
-export const loadPending = (email: string) => get<PendingVote>(pendingKey(email))
-export const loadReceipt = (email: string) => get<StoredReceipt>(receiptKey(email))
+export async function loadPending(email: string, electionId: number): Promise<PendingVote | undefined> {
+  const current = await get<PendingVote>(pendingKey(email, electionId))
+  if (current) return current
+  const legacy = await get<PendingVote>(legacyPendingKey(email))
+  return legacy?.electionId === electionId ? legacy : undefined
+}
+
+export async function loadReceipt(email: string, electionId: number): Promise<StoredReceipt | undefined> {
+  const current = await get<StoredReceipt>(receiptKey(email, electionId))
+  if (current) return current
+  const legacy = await get<StoredReceipt>(legacyReceiptKey(email))
+  return legacy?.electionId === electionId ? legacy : undefined
+}
+
+async function dropPending(email: string, electionId: number): Promise<void> {
+  await del(pendingKey(email, electionId))
+  const legacy = await get<PendingVote>(legacyPendingKey(email))
+  if (legacy?.electionId === electionId) await del(legacyPendingKey(email))
+}
 
 export async function queueVote(email: string, choice: Choice, electionId: number): Promise<PendingVote> {
-  const existing = await loadPending(email)
-  if (existing && existing.electionId === electionId) return existing
+  const existing = await loadPending(email, electionId)
+  if (existing) return existing
 
   const secret = newSecret()
   const pending: PendingVote = {
@@ -45,7 +67,7 @@ export async function queueVote(email: string, choice: Choice, electionId: numbe
     electionId,
     createdAt: Date.now(),
   }
-  await set(pendingKey(email), pending)
+  await set(pendingKey(email, electionId), pending)
   return pending
 }
 
@@ -56,9 +78,9 @@ export type SubmitResult =
   | { status: 'unauthorized' }
   | { status: 'rejected'; message: string }
 
-/** Envoie le bulletin en attente de cet électeur, s'il y en a un. */
-export async function submitPending(email: string, token: string): Promise<SubmitResult> {
-  const pending = await loadPending(email)
+/** Envoie le bulletin en attente de cet électeur pour ce scrutin, s'il y en a un. */
+export async function submitPending(email: string, token: string, electionId: number): Promise<SubmitResult> {
+  const pending = await loadPending(email, electionId)
   if (!pending) return { status: 'none' }
 
   try {
@@ -78,8 +100,8 @@ export async function submitPending(email: string, token: string): Promise<Submi
     const receipt: StoredReceipt | null = ownsBallot
       ? { secret: pending.secret, electionId: pending.electionId }
       : null
-    if (receipt) await set(receiptKey(email), receipt)
-    await del(pendingKey(email))
+    if (receipt) await set(receiptKey(email, electionId), receipt)
+    await dropPending(email, electionId)
     return { status: 'recorded', receipt }
   } catch (e) {
     if (e instanceof NetworkError) return { status: 'offline' }
@@ -87,7 +109,7 @@ export async function submitPending(email: string, token: string): Promise<Submi
       if (e.status === 401) return { status: 'unauthorized' }
       // Scrutin clos, choix refusé… : le renvoyer ne servirait à rien.
       if (e.status === 409 || e.status === 422) {
-        await del(pendingKey(email))
+        await dropPending(email, electionId)
         return { status: 'rejected', message: e.message }
       }
     }

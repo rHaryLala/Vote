@@ -29,6 +29,8 @@ const EVENTS: Record<string, string> = {
   voters_synced: 'Liste synchronisée (registrar)',
   voter_added: 'Électeur ajouté à la main',
   voter_removed: 'Électeur retiré',
+  candidate_announced: 'Candidat annoncé sur le site',
+  candidate_unannounced: 'Annonce du candidat retirée',
   election_opened: 'Scrutin ouvert',
   election_dates_changed: 'Dates modifiées',
   election_closed: 'Scrutin clos',

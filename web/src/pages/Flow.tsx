@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError } from '../lib/api'
 import { useContent } from '../lib/content'
-import { useElection, useMe } from '../lib/queries'
+import { isConfirmed, useElection, useMe } from '../lib/queries'
 import { setSession, useSession } from '../lib/session'
 import { useVote } from '../lib/vote-context'
 import { Countdown } from '../components/Countdown'
@@ -24,7 +24,8 @@ function Message({ title, children }: { title: string; children?: React.ReactNod
 /** Choisit l'écran selon l'état : scrutin, connexion, bulletin en attente, vote, résultats. */
 export function Flow() {
   const t = useContent()
-  const { election, clockOffset, isPending, isError } = useElection()
+  const electionQuery = useElection()
+  const { election, clockOffset, isPending, isError } = electionQuery
   const session = useSession()
   const { pending, receipt } = useVote()
   const me = useMe(session?.token ?? null)
@@ -33,6 +34,16 @@ export function Flow() {
   useEffect(() => {
     if (me.error instanceof ApiError && me.error.status === 401) setSession(null)
   }, [me.error])
+
+  // Session ouverte pour un AUTRE scrutin (vote précédent, puis nouveau scrutin) : son « a voté » et son jeton ne valent pas
+  // pour celui-ci. On la ferme : l'électeur se reconnecte et retrouve son état dans le scrutin en cours.
+  // On ne tranche que sur des informations confirmées par le serveur : hors ligne, le scrutin affiché peut être un ancien état en cache.
+  const sessionElection = session?.electionId ?? (isConfirmed(me) ? me.data?.election.id : undefined) ?? null
+  const staleSession =
+    !!election && isConfirmed(electionQuery) && !!session && sessionElection !== null && sessionElection !== election.id
+  useEffect(() => {
+    if (staleSession) setSession(null)
+  }, [staleSession])
 
   if (isPending && !election) return <p className="label p-10 text-center text-dim">Chargement…</p>
   if (!election) {
@@ -46,7 +57,7 @@ export function Flow() {
   const resultsPublic = election.status === 'closed' && election.results_published
   if (resultsPublic) return <ResultsView />
 
-  if (!session) return <Welcome election={election} clockOffset={clockOffset} />
+  if (!session || staleSession) return <Welcome election={election} clockOffset={clockOffset} />
 
   const hasVoted = session.voter.has_voted || me.data?.voter.has_voted || receipt !== null
   if (hasVoted || pending) return <DoneScreen />

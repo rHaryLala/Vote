@@ -5,6 +5,8 @@ export interface Session {
   token: string
   expiresAt: string | null
   voter: VoterInfo
+  /** Scrutin pour lequel la session a été ouverte (le jeton ne vaut que pour celui-ci). Absent des anciennes sessions. */
+  electionId?: number
 }
 
 const KEY = 'sa.session'

@@ -80,6 +80,13 @@
       "description": "Écran de connexion Google, avant le vote.",
       "fields": [
         { "key": "title", "label": "Titre", "type": "text", "default": "Identifiez-vous pour voter" },
+        { "key": "preopen_title", "label": "Avant l'ouverture : titre", "type": "text", "default": "Le candidat est connu, le vote pas encore ouvert" },
+        {
+          "key": "preopen_text",
+          "label": "Avant l'ouverture : texte (à la place du bouton Google)",
+          "type": "textarea",
+          "default": "Découvrez le candidat ci-dessus. La connexion Google apparaîtra ici à l'ouverture du vote : revenez à ce moment-là avec votre adresse @zurcher.edu.mg."
+        },
         {
           "key": "note",
           "label": "Note sous le bouton Google",
@@ -94,9 +101,9 @@
       "description": "Écran du choix et fenêtre de confirmation.",
       "fields": [
         { "key": "yes_label", "label": "Choix « Oui » : libellé", "type": "text", "default": "Oui" },
-        { "key": "yes_hint", "label": "Choix « Oui » : précision", "type": "text", "default": "J'accepte ce candidat" },
+        { "key": "yes_hint", "label": "Choix « Oui » : précision", "type": "text", "default": "Je lui accorde ma voix" },
         { "key": "no_label", "label": "Choix « Non » : libellé", "type": "text", "default": "Non" },
-        { "key": "no_hint", "label": "Choix « Non » : précision", "type": "text", "default": "Je refuse ce candidat" },
+        { "key": "no_hint", "label": "Choix « Non » : précision", "type": "text", "default": "Je lui refuse ma voix" },
         { "key": "blank_label", "label": "Choix « Blanc » : libellé", "type": "text", "default": "Vote blanc" },
         { "key": "blank_hint", "label": "Choix « Blanc » : précision", "type": "text", "default": "Je ne me prononce pas" },
         { "key": "continue", "label": "Bouton « Continuer »", "type": "text", "default": "Continuer" },
@@ -133,8 +140,11 @@
       "description": "Page des résultats, visible une fois publiés.",
       "fields": [
         { "key": "eyebrow", "label": "Étiquette", "type": "text", "default": "Résultats officiels" },
-        { "key": "accepted", "label": "Décision positive (après le nom)", "type": "text", "default": "est accepté(e)" },
-        { "key": "rejected", "label": "Décision négative (après le nom)", "type": "text", "default": "n'est pas accepté(e)" },
+        { "key": "verdict_label", "label": "Titre du bloc du verdict", "type": "text", "default": "Verdict des urnes" },
+        { "key": "accepted", "label": "Verdict positif, candidat (après le nom)", "type": "text", "default": "est élu" },
+        { "key": "accepted_f", "label": "Verdict positif, candidate (après le nom)", "type": "text", "default": "est élue" },
+        { "key": "rejected", "label": "Verdict négatif, candidat (après le nom)", "type": "text", "default": "n'est pas élu" },
+        { "key": "rejected_f", "label": "Verdict négatif, candidate (après le nom)", "type": "text", "default": "n'est pas élue" },
         { "key": "unavailable_title", "label": "Résultats pas encore publiés : titre", "type": "text", "default": "Résultats non disponibles" },
         { "key": "unavailable_text", "label": "Résultats pas encore publiés : texte", "type": "textarea", "default": "Les résultats seront publiés par la commission après la clôture du scrutin." }
       ]

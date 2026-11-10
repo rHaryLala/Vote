@@ -13,6 +13,7 @@ interface LoginResponse {
   token: string
   expires_at: string | null
   voter: VoterInfo
+  election: { id: number }
 }
 
 export function Welcome({ election, clockOffset }: { election: ElectionInfo; clockOffset: number }) {
@@ -26,7 +27,7 @@ export function Welcome({ election, clockOffset }: { election: ElectionInfo; clo
     setError(null)
     try {
       const res = await api<LoginResponse>('/auth/google', { method: 'POST', body: { credential } })
-      setSession({ token: res.token, expiresAt: res.expires_at, voter: res.voter })
+      setSession({ token: res.token, expiresAt: res.expires_at, voter: res.voter, electionId: res.election.id })
     } catch (e) {
       setError(
         e instanceof NetworkError
@@ -57,7 +58,9 @@ export function Welcome({ election, clockOffset }: { election: ElectionInfo; clo
             <span className="marker" aria-hidden="true" />
             Référendum · {election.title}
           </p>
-          <h1 className="mt-4 font-display text-3xl uppercase leading-[0.95] md:text-5xl">{t.text('login', 'title')}</h1>
+          <h1 className="mt-4 font-display text-3xl uppercase leading-[0.95] md:text-5xl">
+            {election.status === 'draft' ? t.text('login', 'preopen_title') : t.text('login', 'title')}
+          </h1>
           <p className="mt-4 font-mono text-[15px] leading-relaxed">{election.question}</p>
         </div>
 
@@ -85,14 +88,19 @@ export function Welcome({ election, clockOffset }: { election: ElectionInfo; clo
         )}
 
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 md:p-8">
-          <GoogleButton onCredential={(c) => void login(c)} />
+          {election.status === 'draft' ? (
+            // Scrutin seulement annoncé : pas de connexion (le serveur la refuserait de toute façon).
+            <p className="max-w-sm whitespace-pre-line text-center text-sm text-dim">{t.text('login', 'preopen_text')}</p>
+          ) : (
+            <GoogleButton onCredential={(c) => void login(c)} />
+          )}
           {busy && <p className="label text-dim">Vérification de votre compte…</p>}
           {error && (
             <p role="alert" className="w-full max-w-sm border border-danger/40 bg-danger/5 p-3 text-sm text-danger">
               {error}
             </p>
           )}
-          <p className="max-w-sm whitespace-pre-line text-center text-sm text-dim">{t.text('login', 'note')}</p>
+          {election.status !== 'draft' && <p className="max-w-sm whitespace-pre-line text-center text-sm text-dim">{t.text('login', 'note')}</p>}
         </div>
       </motion.div>
     </section>

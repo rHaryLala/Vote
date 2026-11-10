@@ -8,6 +8,8 @@ import {
   ImageUp,
   Loader2,
   Lock,
+  Eye,
+  EyeOff,
   Megaphone,
   Play,
   Save,
@@ -26,6 +28,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
@@ -46,6 +49,8 @@ interface FormState {
   title: string
   question: string
   candidate_name: string
+  /** Vide tant que la commission n'a pas choisi (obligatoire à la création). */
+  candidate_gender: '' | 'm' | 'f'
   candidate_title: string
   candidate_bio: string
   candidate_program: string
@@ -57,8 +62,9 @@ interface FormState {
 
 const EMPTY: FormState = {
   title: 'Élection du Président de la SA',
-  question: 'Acceptez-vous ce candidat comme Président de la SA ?',
+  question: 'Souhaitez-vous élire ce candidat Président de la SA ?',
   candidate_name: '',
+  candidate_gender: '',
   candidate_title: '',
   candidate_bio: '',
   candidate_program: '',
@@ -73,6 +79,7 @@ function toForm(e: AdminElection): FormState {
     title: e.title,
     question: e.question,
     candidate_name: e.candidate_name,
+    candidate_gender: e.candidate_gender,
     candidate_title: e.candidate_title ?? '',
     candidate_bio: e.candidate_bio ?? '',
     candidate_program: e.candidate_program ?? '',
@@ -125,10 +132,12 @@ function ElectionForm({ election }: { election?: AdminElection }) {
     mutationFn: () => {
       const dates = { opens_at: fromInput(form.opens_at), closes_at: fromInput(form.closes_at) }
       // Scrutin ouvert : seules les dates sont modifiables (le reste est figé côté serveur).
+      const gender = form.candidate_gender ? { candidate_gender: form.candidate_gender } : {}
       const body = lockedContent
-        ? dates
+        ? { ...dates, ...gender }
         : {
             ...dates,
+            ...gender,
             title: form.title,
             question: form.question,
             candidate_name: form.candidate_name,
@@ -185,7 +194,7 @@ function ElectionForm({ election }: { election?: AdminElection }) {
           <AlertDescription>
             {lockedDates
               ? 'Les dates, la question, le candidat et la règle sont figés pour garantir le résultat.'
-              : "La question, le candidat et la règle d'acceptation sont figés pour l'équité du vote. Les dates restent modifiables (par exemple pour prolonger le vote) ; chaque changement est inscrit au journal d'audit."}
+              : "La question, le candidat et la règle d'élection sont figés pour l'équité du vote. Les dates restent modifiables (par exemple pour prolonger le vote) ; chaque changement est inscrit au journal d'audit."}
           </AlertDescription>
         </Alert>
       )}
@@ -297,6 +306,22 @@ function ElectionForm({ election }: { election?: AdminElection }) {
                   onChange={(e) => set('candidate_name', e.target.value)}
                 />
               </Field>
+              <Field
+                id="candidate_gender"
+                label="Sexe du candidat"
+                help="Sert à accorder le verdict : « est élu » ou « est élue »."
+                error={errors.candidate_gender}
+              >
+                <Select value={form.candidate_gender} onValueChange={(v) => set('candidate_gender', v as 'm' | 'f')}>
+                  <SelectTrigger id="candidate_gender" className="w-full" aria-invalid={!!errors.candidate_gender}>
+                    <SelectValue placeholder="Choisir…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="m">Masculin (candidat)</SelectItem>
+                    <SelectItem value="f">Féminin (candidate)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
               <Field id="candidate_title" label="Parcours en une ligne" error={errors.candidate_title}>
                 <Input
                   id="candidate_title"
@@ -331,9 +356,9 @@ function ElectionForm({ election }: { election?: AdminElection }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Règle d'acceptation</CardTitle>
+          <CardTitle>Règle d'élection</CardTitle>
           <CardDescription>
-            Le candidat est accepté si les Oui dépassent 50 % des suffrages exprimés, et si le quorum éventuel est atteint.
+            Le candidat est élu si les Oui dépassent 50 % des suffrages exprimés, et si le quorum éventuel est atteint.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 md:grid-cols-2">
@@ -365,7 +390,7 @@ function ElectionForm({ election }: { election?: AdminElection }) {
         </CardContent>
         {!lockedDates && (
           <CardFooter className="justify-end border-t">
-            <Button type="submit" disabled={save.isPending}>
+            <Button type="submit" disabled={save.isPending || (!election && !form.candidate_gender)}>
               {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
               {election ? 'Enregistrer' : 'Créer le scrutin'}
             </Button>
@@ -404,7 +429,7 @@ function Stats({ e }: { e: AdminElection }) {
         icon={<BarChart3 className="size-4" />}
         label="Résultats"
         value={t ? `${t.yes} / ${t.no} / ${t.blank}` : 'Masqués'}
-        hint={t ? (t.accepted ? 'Oui / Non / Blanc · candidat accepté' : 'Oui / Non / Blanc · candidat non accepté') : 'Visibles à la clôture du scrutin'}
+        hint={t ? (`Oui / Non / Blanc · ${e.candidate_gender === 'f' ? 'candidate' : 'candidat'} ${t.accepted ? '' : 'non '}${e.candidate_gender === 'f' ? 'élue' : 'élu'}`) : 'Visibles à la clôture du scrutin'}
       />
     </div>
   )
@@ -689,7 +714,7 @@ function ResultsTab({ e }: { e: AdminElection }) {
       <Card className={t.accepted ? 'border-success' : 'border-destructive'}>
         <CardHeader>
           <CardDescription>Décision</CardDescription>
-          <CardTitle className="text-2xl">{t.accepted ? 'Candidat accepté' : 'Candidat non accepté'}</CardTitle>
+          <CardTitle className="text-2xl">{e.candidate_gender === 'f' ? (t.accepted ? 'Candidate élue' : 'Candidate non élue') : t.accepted ? 'Candidat élu' : 'Candidat non élu'}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-1 text-sm text-muted-foreground">
           <p>Majorité : {t.majority_reached ? 'atteinte' : 'non atteinte'}</p>
@@ -720,7 +745,7 @@ function OpenExplanation({ e }: { e: AdminElection }) {
         aucun bulletin n'est accepté avant l'heure d'ouverture.
       </Line>
       <Line>
-        Sont figés : la question, le candidat, la règle d'acceptation, l'import et la synchronisation de la liste. Restent possibles : modifier les
+        Sont figés : la question, le candidat, la règle d'élection, l'import et la synchronisation de la liste. Restent possibles : modifier les
         dates et ajouter un électeur à la main (journalisé).
       </Line>
       <Line>Aucun e-mail n'est envoyé aux étudiants.</Line>
@@ -762,6 +787,16 @@ export function ElectionPage() {
     }
   }
 
+  const announce = (value: boolean) => async () => {
+    try {
+      await adminApi(`/elections/${id}/announce`, { method: 'PUT', body: { announced: value } })
+      toast.success(value ? 'Candidat visible sur le site' : 'Candidat retiré du site')
+      await qc.invalidateQueries({ queryKey: ['admin'] })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Action impossible')
+    }
+  }
+
   if (!isNew && isPending) {
     return (
       <div className="grid gap-4">
@@ -784,7 +819,16 @@ export function ElectionPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="grid gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{e ? e.title : 'Nouveau scrutin'}</h1>
-            {e && <StatusBadge status={e.status} isOpen={e.is_open} published={e.results_published} />}
+            {e && (
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={e.status} isOpen={e.is_open} published={e.results_published} />
+                {e.status === 'draft' && e.announced && (
+                  <Badge variant="outline" className="gap-1 border-success text-success">
+                    <Eye className="size-3" /> Visible sur le site
+                  </Badge>
+                )}
+              </div>
+            )}
           </div>
           {e && (
             <div className="flex flex-wrap gap-2">
@@ -802,6 +846,19 @@ export function ElectionPage() {
               />
               {e.status === 'draft' && (
                 <>
+                  <ConfirmButton
+                    variant="outline"
+                    title={e.announced ? 'Retirer le candidat du site ?' : 'Afficher le candidat sur le site ?'}
+                    description={
+                      e.announced
+                        ? "Le site public n'affichera plus ce scrutin : les étudiants reverront « Aucun scrutin » jusqu'à son ouverture."
+                        : "Les étudiants verront sur le site la question, le candidat (photo, présentation, engagements), les dates et le compte à rebours. Ils ne pourront ni se connecter ni voter avant l'ouverture. Vous pouvez retirer l'annonce à tout moment, tant que le scrutin est en brouillon. Pensez à vérifier le texte et la photo : ce que vous modifiez ensuite est visible tout de suite."
+                    }
+                    confirmLabel={e.announced ? 'Retirer du site' : 'Afficher sur le site'}
+                    onConfirm={announce(!e.announced)}
+                  >
+                    {e.announced ? <EyeOff /> : <Eye />} {e.announced ? 'Retirer du site' : 'Afficher le candidat'}
+                  </ConfirmButton>
                   <ConfirmButton
                     title="Ouvrir le scrutin ?"
                     description={<OpenExplanation e={e} />}

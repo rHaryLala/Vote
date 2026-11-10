@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { loadPending, loadReceipt, queueVote, submitPending, type PendingVote, type StoredReceipt } from './outbox'
 import { clearCache } from './query'
+import { useElection } from './queries'
 import { getSession, setSession, useSession } from './session'
 import type { Choice } from './types'
 
@@ -36,14 +37,20 @@ export function VoteProvider({ children }: { children: ReactNode }) {
   const [justVoted, setJustVoted] = useState(false)
   const flushing = useRef(false)
 
+  const { election } = useElection()
   const email = session?.voter.email ?? null
+  // Scrutin de la session ; à défaut (ancienne session), le scrutin courant.
+  const electionId = session?.electionId ?? election?.id ?? null
+  const electionIdRef = useRef(electionId)
+  electionIdRef.current = electionId
 
-  const flush = useCallback(async () => {
+  const flush = useCallback(async (forElection?: number) => {
     const current = getSession()
-    if (!current || flushing.current) return
+    const eid = forElection ?? current?.electionId ?? electionIdRef.current
+    if (!current || !eid || flushing.current) return
     flushing.current = true
     try {
-      const result = await submitPending(current.voter.email, current.token)
+      const result = await submitPending(current.voter.email, current.token, eid)
       switch (result.status) {
         case 'recorded':
           setPending(null)
@@ -81,9 +88,9 @@ export function VoteProvider({ children }: { children: ReactNode }) {
     setPhase('idle')
     setRejection(null)
     setJustVoted(false)
-    if (!email) return
+    if (!email || !electionId) return
     void (async () => {
-      const [p, r] = await Promise.all([loadPending(email), loadReceipt(email)])
+      const [p, r] = await Promise.all([loadPending(email, electionId), loadReceipt(email, electionId)])
       if (cancelled) return
       setPending(p ?? null)
       setReceipt(r ?? null)
@@ -95,7 +102,7 @@ export function VoteProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [email, flush])
+  }, [email, electionId, flush])
 
   // Reprise automatique : retour du réseau, retour sur l'application, et relance périodique.
   useEffect(() => {
@@ -118,7 +125,7 @@ export function VoteProvider({ children }: { children: ReactNode }) {
       setRejection(null)
       setPending(await queueVote(email, choice, electionId))
       setPhase('sending')
-      await flush()
+      await flush(electionId)
     },
     [email, flush],
   )

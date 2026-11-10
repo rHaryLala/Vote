@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, DatabaseZap, Eye, Loader2, RefreshCw, Timer } from 'lucide-react'
+import { AlertTriangle, DatabaseZap, Download, Eye, Loader2, RefreshCw, Timer } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { adminApi, type AdminElection } from '../api'
 import { fmt } from '../time'
 import { ConfirmButton } from './ConfirmButton'
@@ -22,6 +23,17 @@ interface RegistrarSession {
   enrolled: number
 }
 
+type Levels = 'all' | 'licence' | 'master'
+
+const LEVEL_LABEL: Record<Levels, string> = { all: 'Licence et Master', licence: 'Licence seulement', master: 'Master seulement' }
+
+interface MissingEmail {
+  student_id: string
+  name: string
+  reason: 'missing' | 'other_domain'
+  level: 'licence' | 'master'
+}
+
 interface SyncResult {
   valid: number
   invalid: number
@@ -32,6 +44,9 @@ interface SyncResult {
   manual: number
   total: number
   without_email: number
+  without_email_list: MissingEmail[]
+  levels: Levels
+  by_level: Record<'licence' | 'master', { eligible: number; without_email: number }>
   enrolled: number
   dry_run: boolean
   session: { id: number; name: string; year: string; semester: number }
@@ -56,6 +71,73 @@ function Figure({ title, value, tone }: { title: string; value: number; tone?: '
   )
 }
 
+const REASON: Record<MissingEmail['reason'], string> = { missing: 'Aucune adresse', other_domain: 'Adresse hors @zurcher.edu.mg' }
+const LEVEL_NAME = { licence: 'Licence', master: 'Master' } as const
+
+/** CSV lisible par Excel en français (séparateur « ; », BOM UTF-8) pour transmettre la liste à corriger au registrar. */
+function downloadCsv(rows: MissingEmail[]) {
+  const q = (v: string) => `"${v.replace(/"/g, '""')}"`
+  const lines = [['Matricule', 'Nom', 'Niveau', 'Problème'].map(q).join(';')]
+  for (const r of rows) lines.push([r.student_id, r.name, LEVEL_NAME[r.level], REASON[r.reason]].map(q).join(';'))
+  const url = URL.createObjectURL(new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'etudiants-sans-adresse-zurcher.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function WithoutEmail({ rows, count, levels }: { rows: MissingEmail[]; count: number; levels: Levels }) {
+  return (
+    <Alert>
+      <AlertTriangle />
+      <AlertTitle>
+        {count} étudiant{count > 1 ? 's' : ''} inscrit{count > 1 ? 's' : ''} sans adresse @zurcher.edu.mg
+        {levels !== 'all' && ` (${LEVEL_NAME[levels]})`}
+      </AlertTitle>
+      <AlertDescription className="grid gap-3">
+        <span>
+          Ils ne pourront pas se connecter avec Google, donc pas voter. Corrigez leur fiche dans le registrar, puis relancez la
+          synchronisation avant l'ouverture.
+        </span>
+        {rows.length > 0 ? (
+          <>
+            <div className="max-h-64 overflow-auto rounded-md border bg-background">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Matricule</TableHead>
+                    <TableHead>Nom</TableHead>
+                    <TableHead>Niveau</TableHead>
+                    <TableHead className="hidden sm:table-cell">Problème</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((r) => (
+                    <TableRow key={r.student_id}>
+                      <TableCell className="font-mono text-xs">{r.student_id}</TableCell>
+                      <TableCell className="font-medium">{r.name || '—'}</TableCell>
+                      <TableCell>{LEVEL_NAME[r.level]}</TableCell>
+                      <TableCell className="hidden text-muted-foreground sm:table-cell">{REASON[r.reason]}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <Button variant="outline" size="sm" className="justify-self-start" onClick={() => downloadCsv(rows)}>
+              <Download /> Télécharger la liste (CSV)
+            </Button>
+          </>
+        ) : (
+          <span className="text-xs">
+            Le détail (noms) n'est pas fourni par le registrar : mettez à jour l'export (<code>install-on-vps.sh</code>).
+          </span>
+        )}
+      </AlertDescription>
+    </Alert>
+  )
+}
+
 /**
  * Synchronisation de la liste électorale avec le registrar. La commission choisit la session (le registrar n'a pas
  * de notion unique de « session active »), prévisualise ce qui changerait, puis confirme.
@@ -70,6 +152,7 @@ export function RegistrarSync({ e }: { e: AdminElection }) {
   })
   const [sessionId, setSessionId] = useState('')
   const [preview, setPreview] = useState<SyncResult | null>(null)
+  const [levels, setLevels] = useState<Levels>(e.registrar.levels ?? 'all')
 
   // Par défaut : la session marquée active, sinon la plus récente qui a des inscrits.
   useEffect(() => {
@@ -87,7 +170,7 @@ export function RegistrarSync({ e }: { e: AdminElection }) {
     mutationFn: (dryRun: boolean) =>
       adminApi<{ data: SyncResult }>(`/elections/${e.id}/voters/sync`, {
         method: 'POST',
-        body: { session_id: Number(sessionId), dry_run: dryRun },
+        body: { session_id: Number(sessionId), dry_run: dryRun, levels },
       }),
     onSuccess: ({ data }) => {
       if (data.dry_run) {
@@ -107,7 +190,7 @@ export function RegistrarSync({ e }: { e: AdminElection }) {
     mutationFn: (enabled: boolean) =>
       adminApi<{ sync: { status: string; message: string | null; added: number; removed: number } }>(`/elections/${e.id}/registrar/auto`, {
         method: 'PUT',
-        body: { enabled, session_id: enabled ? Number(sessionId) : null },
+        body: { enabled, session_id: enabled ? Number(sessionId) : null, levels },
       }),
     onSuccess: (res, enabled) => {
       if (!enabled) toast.success('Synchronisation automatique désactivée')
@@ -151,7 +234,7 @@ export function RegistrarSync({ e }: { e: AdminElection }) {
   const list = sessions.data?.sessions ?? []
   const chosen = list.find((s) => String(s.id) === sessionId)
   // La synchronisation exige un aperçu de CETTE session : on ne remplace jamais la liste à l'aveugle.
-  const previewed = preview !== null && String(preview.session.id) === sessionId
+  const previewed = preview !== null && String(preview.session.id) === sessionId && preview.levels === levels
 
   return (
     <Card>
@@ -169,6 +252,7 @@ export function RegistrarSync({ e }: { e: AdminElection }) {
           <Label htmlFor="session">Session du registrar</Label>
           <Select
             value={sessionId}
+            disabled={e.registrar.auto_sync}
             onValueChange={(v) => {
               setSessionId(v)
               setPreview(null)
@@ -187,6 +271,33 @@ export function RegistrarSync({ e }: { e: AdminElection }) {
           </Select>
         </div>
 
+        <div className="grid max-w-xl gap-2">
+          <Label htmlFor="levels">Niveaux concernés</Label>
+          <Select
+            value={levels}
+            disabled={e.registrar.auto_sync}
+            onValueChange={(v) => {
+              setLevels(v as Levels)
+              setPreview(null)
+            }}
+          >
+            <SelectTrigger id="levels" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(LEVEL_LABEL) as Levels[]).map((l) => (
+                <SelectItem key={l} value={l}>
+                  {LEVEL_LABEL[l]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Un étudiant est en Master à partir de la 4e année d'étude de sa fiche ; la remise à niveau est comptée avec la Licence.
+            {e.registrar.auto_sync && ' Désactivez la synchronisation automatique pour changer la session ou les niveaux.'}
+          </p>
+        </div>
+
         <div className="grid gap-3 rounded-lg border p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="grid gap-1">
@@ -202,16 +313,14 @@ export function RegistrarSync({ e }: { e: AdminElection }) {
             <Switch
               id="auto-sync"
               checked={e.registrar.auto_sync}
-              disabled={auto.isPending || (!e.registrar.auto_sync && !sessionId)}
+              disabled={auto.isPending || (!e.registrar.auto_sync && !previewed)}
               onCheckedChange={(v) => auto.mutate(v)}
             />
           </div>
           {e.registrar.auto_sync && (
             <p className="text-xs text-muted-foreground">
+              Suit : {LEVEL_LABEL[e.registrar.levels ?? 'all']}.{' '}
               {e.registrar.synced_at ? <>Dernier contrôle : {fmt(e.registrar.synced_at, true)}.</> : 'Premier contrôle en attente.'}
-              {e.registrar.session_id && sessionId && String(e.registrar.session_id) !== sessionId && (
-                <> La session suivie est la n° {e.registrar.session_id} : désactivez puis réactivez pour changer.</>
-              )}
             </p>
           )}
           {e.registrar.error && (
@@ -233,7 +342,7 @@ export function RegistrarSync({ e }: { e: AdminElection }) {
               <>
                 La liste actuelle ({e.stats.registered.toLocaleString('fr-FR')} électeurs) sera remplacée par les{' '}
                 {preview ? (preview.total - preview.manual).toLocaleString('fr-FR') : ''} étudiants inscrits à «{' '}
-                {chosen ? `${chosen.year} · ${chosen.name}` : ''} »
+                {chosen ? `${chosen.year} · ${chosen.name}` : ''} » ({LEVEL_LABEL[levels]})
                 {preview && preview.manual > 0 ? ` (les ${preview.manual} électeur(s) ajouté(s) manuellement sont conservés)` : ''}. Après
                 l'ouverture du scrutin, l'import et la synchronisation ne seront plus possibles.
               </>
@@ -261,18 +370,14 @@ export function RegistrarSync({ e }: { e: AdminElection }) {
               <Figure title="Retirés" value={preview.removed} tone="remove" />
               <Figure title="Inchangés" value={preview.unchanged} />
             </div>
+            <p className="text-xs text-muted-foreground">
+              Toute la session : <strong>Licence {preview.by_level.licence.eligible.toLocaleString('fr-FR')}</strong> électeurs
+              {preview.by_level.licence.without_email > 0 && ` (+${preview.by_level.licence.without_email} sans adresse)`} ·{' '}
+              <strong>Master {preview.by_level.master.eligible.toLocaleString('fr-FR')}</strong> électeurs
+              {preview.by_level.master.without_email > 0 && ` (+${preview.by_level.master.without_email} sans adresse)`}.
+            </p>
             {preview.without_email > 0 && (
-              <Alert>
-                <AlertTriangle />
-                <AlertTitle>
-                  {preview.without_email} étudiant{preview.without_email > 1 ? 's' : ''} inscrit{preview.without_email > 1 ? 's' : ''} sans adresse
-                  @zurcher.edu.mg
-                </AlertTitle>
-                <AlertDescription>
-                  Ils ne pourront pas se connecter avec Google, donc pas voter. Corrigez leur fiche dans le registrar, puis relancez la
-                  synchronisation avant l'ouverture.
-                </AlertDescription>
-              </Alert>
+              <WithoutEmail rows={preview.without_email_list} count={preview.without_email} levels={preview.levels} />
             )}
             {preview.manual > 0 && (
               <p className="text-xs text-muted-foreground">

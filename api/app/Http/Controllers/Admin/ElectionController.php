@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class ElectionController extends Controller
 {
@@ -130,6 +131,32 @@ class ElectionController extends Controller
         });
     }
 
+    /**
+     * Montre (ou retire) le candidat sur le site AVANT l'ouverture du vote : question, présentation, dates et compte à rebours.
+     * Les étudiants ne peuvent pas se connecter ni voter tant que le scrutin n'est pas ouvert.
+     */
+    public function announce(Request $request, Election $election): JsonResponse
+    {
+        $data = $request->validate(['announced' => ['required', 'boolean']]);
+
+        if ($election->status !== Election::STATUS_DRAFT) {
+            return response()->json([
+                'code' => 'locked',
+                'message' => $election->status === Election::STATUS_OPEN
+                    ? 'Le scrutin est ouvert : il est déjà visible sur le site.'
+                    : 'Le scrutin est clos : il ne peut plus être annoncé.',
+            ], 409);
+        }
+
+        $announced = (bool) $data['announced'];
+        if ($announced !== (bool) $election->announced) {
+            $election->forceFill(['announced' => $announced])->save();
+            AuditLog::record($announced ? 'candidate_announced' : 'candidate_unannounced', $election->id);
+        }
+
+        return response()->json(['data' => self::present($election->fresh())]);
+    }
+
     public function close(Election $election): JsonResponse
     {
         return $this->guard(function () use ($election) {
@@ -166,6 +193,8 @@ class ElectionController extends Controller
             'title' => [$req, 'string', 'max:255'],
             'question' => [$req, 'string', 'max:2000'],
             'candidate_name' => [$req, 'string', 'max:255'],
+            // Ne change que l'accord du verdict (« élu » / « élue ») : modifiable même quand le scrutin est ouvert.
+            'candidate_gender' => ['sometimes', 'string', Rule::in(['m', 'f'])],
             'candidate_title' => ['sometimes', 'nullable', 'string', 'max:255'],
             'candidate_bio' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'candidate_program' => ['sometimes', 'nullable', 'string', 'max:5000'],
@@ -204,6 +233,7 @@ class ElectionController extends Controller
             'title' => $election->title,
             'question' => $election->question,
             'candidate_name' => $election->candidate_name,
+            'candidate_gender' => $election->candidate_gender ?: 'm',
             'candidate_title' => $election->candidate_title,
             'candidate_bio' => $election->candidate_bio,
             'candidate_program' => $election->candidate_program,
@@ -216,6 +246,7 @@ class ElectionController extends Controller
             'quorum_percent' => $election->quorum_percent,
             'results_published' => $election->results_published,
             'public_visible' => $election->isVisible(),
+            'announced' => (bool) $election->announced,
             'registrar' => [
                 'auto_sync' => (bool) $election->registrar_auto_sync,
                 'session_id' => $election->registrar_session_id,

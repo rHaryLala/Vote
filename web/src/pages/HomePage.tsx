@@ -89,7 +89,9 @@ export function HomePage() {
           : 'Je vote'
         : election.status === 'closed'
           ? 'Voir le scrutin'
-          : 'Accéder au vote'
+          : election.status === 'draft'
+            ? 'Voir le candidat'
+            : 'Accéder au vote'
 
   const facts = t.items('home', 'facts')
   const steps = t.items('home', 'steps')

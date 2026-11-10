@@ -63,6 +63,7 @@ class ElectionController extends Controller
             'question' => $election->question,
             'candidate' => [
                 'name' => $election->candidate_name,
+                'gender' => $election->candidate_gender ?: 'm',
                 'title' => $election->candidate_title,
                 'photo' => $election->candidatePhotoUrl(),
                 'bio' => $election->candidate_bio,
