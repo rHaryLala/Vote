@@ -1,0 +1,193 @@
+{
+  "_comment": "Textes modifiables du site, page par page. Source UNIQUE : lue par l'API (validation, valeurs par défaut) et par le front (affichage immédiat, y compris hors ligne). Types : text, textarea, lines (une entrée par ligne), items (liste de {title, text}). La base ne stocke que les textes modifiés par la commission.",
+  "pages": [
+    {
+      "key": "general",
+      "label": "Général",
+      "description": "En-tête et pied de page, présents sur toutes les pages.",
+      "fields": [
+        { "key": "header_title", "label": "En-tête : ligne 1", "type": "text", "default": "Student Association" },
+        { "key": "header_subtitle", "label": "En-tête : ligne 2", "type": "text", "default": "UAZ · Élection" },
+        { "key": "footer", "label": "Pied de page", "type": "text", "default": "© Student Association · Université Adventiste Zurcher" }
+      ]
+    },
+    {
+      "key": "home",
+      "label": "Accueil",
+      "description": "Page d'accueil publique. Le nom, la photo, le parcours et les engagements du candidat se modifient dans le scrutin.",
+      "fields": [
+        { "key": "marquee", "label": "Bandeau défilant", "type": "text", "default": "Élection SA {année}", "help": "{année} est remplacé par l'année du scrutin." },
+        { "key": "tags", "label": "Étiquettes sous le bandeau", "type": "lines", "default": ["Association des Étudiants", "Référendum", "Université Adventiste Zurcher"] },
+        { "key": "hero_eyebrow", "label": "Accroche au-dessus du titre", "type": "text", "default": "Élection présidentielle" },
+        { "key": "hero_title", "label": "Grand titre", "type": "textarea", "default": "Votre voix\ncompte", "help": "Un retour à la ligne crée une nouvelle ligne du titre." },
+        { "key": "hero_cta_secondary", "label": "Bouton secondaire", "type": "text", "default": "Le candidat" },
+        {
+          "key": "facts",
+          "label": "Chiffres clés (rangée de cases)",
+          "type": "items",
+          "default": [
+            { "title": "Candidat", "text": "Unique" },
+            { "title": "Choix", "text": "Oui · Non · Blanc" },
+            { "title": "Bulletin", "text": "Anonyme" },
+            { "title": "Réseau", "text": "Hors ligne OK" }
+          ]
+        },
+        { "key": "about_eyebrow", "label": "Section SA : étiquette", "type": "text", "default": "Qui sommes-nous" },
+        { "key": "about_title", "label": "Section SA : titre", "type": "text", "default": "La SA" },
+        {
+          "key": "about_text",
+          "label": "Section SA : présentation",
+          "type": "textarea",
+          "default": "L'Association des Étudiants (SA) de l'Université Adventiste Zurcher élit son président. Cette année, les étudiants se prononcent par référendum sur le candidat présenté ci-dessous."
+        },
+        { "key": "candidate_eyebrow", "label": "Section candidat : étiquette", "type": "text", "default": "Le candidat" },
+        { "key": "candidate_badge", "label": "Section candidat : mention", "type": "text", "default": "Candidat unique" },
+        { "key": "candidate_program_title", "label": "Titre des engagements", "type": "text", "default": "Ses engagements" },
+        { "key": "candidate_empty", "label": "Texte si la présentation est vide", "type": "text", "default": "La présentation du candidat sera bientôt publiée." },
+        { "key": "calendar_eyebrow", "label": "Section calendrier : étiquette", "type": "text", "default": "Calendrier" },
+        { "key": "calendar_note", "label": "Section calendrier : note", "type": "text", "default": "Heure de Madagascar" },
+        { "key": "steps_eyebrow", "label": "Section étapes : étiquette", "type": "text", "default": "Pas à pas" },
+        { "key": "steps_title", "label": "Section étapes : titre", "type": "text", "default": "Comment voter" },
+        {
+          "key": "steps",
+          "label": "Étapes",
+          "type": "items",
+          "default": [
+            { "title": "Connexion", "text": "Avec votre compte Google @zurcher.edu.mg. Seuls les étudiants inscrits pour le semestre peuvent voter." },
+            { "title": "Votre choix", "text": "Oui, Non ou vote blanc. Vous confirmez avant l’envoi ; le choix est définitif." },
+            { "title": "Votre reçu", "text": "Un code personnel prouve que votre bulletin est dans l’urne, sans révéler votre choix." },
+            { "title": "Résultats", "text": "Publiés par la commission électorale après la clôture du scrutin." }
+          ]
+        },
+        { "key": "guarantees_eyebrow", "label": "Section garanties : étiquette", "type": "text", "default": "Confiance" },
+        { "key": "guarantees_title", "label": "Section garanties : titre", "type": "text", "default": "Votre vote est protégé" },
+        {
+          "key": "guarantees",
+          "label": "Garanties",
+          "type": "items",
+          "default": [
+            { "title": "Anonyme", "text": "Aucune information enregistrée ne relie votre bulletin à votre compte." },
+            { "title": "Un seul vote", "text": "Chaque étudiant inscrit vote une fois, vérifié par le serveur." },
+            { "title": "Hors ligne", "text": "Votre bulletin est gardé sur votre téléphone et envoyé au retour de la connexion." }
+          ]
+        },
+        { "key": "guarantees_link", "label": "Lien vers la confidentialité", "type": "text", "default": "Comment c’est garanti, en détail →" }
+      ]
+    },
+    {
+      "key": "login",
+      "label": "Connexion",
+      "description": "Écran de connexion Google, avant le vote.",
+      "fields": [
+        { "key": "title", "label": "Titre", "type": "text", "default": "Identifiez-vous pour voter" },
+        {
+          "key": "note",
+          "label": "Note sous le bouton Google",
+          "type": "textarea",
+          "default": "Utilisez votre adresse @zurcher.edu.mg. Votre vote est anonyme : personne, pas même la commission, ne peut relier votre choix à votre compte."
+        }
+      ]
+    },
+    {
+      "key": "vote",
+      "label": "Bulletin de vote",
+      "description": "Écran du choix et fenêtre de confirmation.",
+      "fields": [
+        { "key": "yes_label", "label": "Choix « Oui » : libellé", "type": "text", "default": "Oui" },
+        { "key": "yes_hint", "label": "Choix « Oui » : précision", "type": "text", "default": "J'accepte ce candidat" },
+        { "key": "no_label", "label": "Choix « Non » : libellé", "type": "text", "default": "Non" },
+        { "key": "no_hint", "label": "Choix « Non » : précision", "type": "text", "default": "Je refuse ce candidat" },
+        { "key": "blank_label", "label": "Choix « Blanc » : libellé", "type": "text", "default": "Vote blanc" },
+        { "key": "blank_hint", "label": "Choix « Blanc » : précision", "type": "text", "default": "Je ne me prononce pas" },
+        { "key": "continue", "label": "Bouton « Continuer »", "type": "text", "default": "Continuer" },
+        { "key": "confirm_text", "label": "Confirmation : avertissement", "type": "textarea", "default": "Ce choix est définitif et ne pourra plus être modifié." },
+        { "key": "confirm_button", "label": "Confirmation : bouton principal", "type": "text", "default": "Confirmer mon vote" },
+        { "key": "cancel_button", "label": "Confirmation : bouton secondaire", "type": "text", "default": "Modifier mon choix" }
+      ]
+    },
+    {
+      "key": "done",
+      "label": "Après le vote",
+      "description": "Écran affiché une fois le bulletin déposé (avec le code de reçu).",
+      "fields": [
+        { "key": "recorded_title", "label": "Vote enregistré : titre", "type": "text", "default": "Merci, votre voix est dans l'urne" },
+        { "key": "recorded_text", "label": "Vote enregistré : texte", "type": "textarea", "default": "Votre vote est anonyme. Les résultats seront publiés à la clôture du scrutin." },
+        { "key": "pending_title", "label": "Vote en attente de réseau : titre", "type": "text", "default": "Vote gardé sur cet appareil" },
+        {
+          "key": "pending_text",
+          "label": "Vote en attente de réseau : texte",
+          "type": "textarea",
+          "default": "Il sera envoyé automatiquement dès que la connexion reviendra. Gardez simplement cette application ; il ne sera compté qu'après réception par le serveur."
+        },
+        {
+          "key": "receipt_note",
+          "label": "Explication du code de reçu",
+          "type": "textarea",
+          "default": "Notez-le : il prouve que votre bulletin est dans l'urne, sans révéler votre choix. Le serveur ne le connaît pas et ne peut pas le retrouver pour vous."
+        }
+      ]
+    },
+    {
+      "key": "results",
+      "label": "Résultats",
+      "description": "Page des résultats, visible une fois publiés.",
+      "fields": [
+        { "key": "eyebrow", "label": "Étiquette", "type": "text", "default": "Résultats officiels" },
+        { "key": "accepted", "label": "Décision positive (après le nom)", "type": "text", "default": "est accepté(e)" },
+        { "key": "rejected", "label": "Décision négative (après le nom)", "type": "text", "default": "n'est pas accepté(e)" },
+        { "key": "unavailable_title", "label": "Résultats pas encore publiés : titre", "type": "text", "default": "Résultats non disponibles" },
+        { "key": "unavailable_text", "label": "Résultats pas encore publiés : texte", "type": "textarea", "default": "Les résultats seront publiés par la commission après la clôture du scrutin." }
+      ]
+    },
+    {
+      "key": "status",
+      "label": "Messages d'état",
+      "description": "Écrans affichés quand le vote n'est pas ouvert.",
+      "fields": [
+        { "key": "notopen_title", "label": "Pas encore ouvert : titre", "type": "text", "default": "Le vote n'est pas encore ouvert" },
+        { "key": "notopen_text", "label": "Pas encore ouvert : texte", "type": "textarea", "default": "Revenez à l'ouverture du scrutin. Vous êtes bien identifié(e)." },
+        { "key": "closed_title", "label": "Vote clos : titre", "type": "text", "default": "Le vote est clos" },
+        { "key": "closed_text", "label": "Vote clos : texte", "type": "textarea", "default": "Le scrutin est terminé. Les résultats seront publiés par la commission électorale." },
+        { "key": "none_title", "label": "Aucun scrutin : titre", "type": "text", "default": "Aucun scrutin" },
+        { "key": "none_text", "label": "Aucun scrutin : texte", "type": "textarea", "default": "Aucun scrutin n'est ouvert pour le moment." }
+      ]
+    },
+    {
+      "key": "verify",
+      "label": "Vérifier un reçu",
+      "description": "Page de vérification du code de reçu.",
+      "fields": [
+        { "key": "eyebrow", "label": "Étiquette", "type": "text", "default": "Reçu de vote" },
+        { "key": "title", "label": "Titre", "type": "text", "default": "Vérifier mon reçu" },
+        {
+          "key": "intro",
+          "label": "Introduction",
+          "type": "textarea",
+          "default": "Saisissez le code de reçu affiché après votre vote. Nous vérifions que votre bulletin est dans l'urne, sans jamais révéler pour quoi vous avez voté."
+        }
+      ]
+    },
+    {
+      "key": "privacy",
+      "label": "Confidentialité",
+      "description": "Explications sur la protection du vote.",
+      "fields": [
+        { "key": "eyebrow", "label": "Étiquette", "type": "text", "default": "Comment votre vote est protégé" },
+        { "key": "title", "label": "Titre", "type": "text", "default": "Confidentialité" },
+        {
+          "key": "sections",
+          "label": "Questions / réponses",
+          "type": "items",
+          "default": [
+            { "title": "Pourquoi Google ?", "text": "Votre compte Google @zurcher.edu.mg ne sert qu'à prouver que vous êtes un(e) étudiant(e) de l'université. Nous ne recevons que votre adresse, votre nom et votre photo de profil, et nous ne lisons ni vos e-mails ni vos fichiers." },
+            { "title": "Qui peut voter ?", "text": "Les étudiants inscrits pour le semestre de la session active, d'après le registrariat. La liste est figée à l'ouverture du scrutin." },
+            { "title": "Mon vote est-il anonyme ?", "text": "Oui. Le serveur garde deux registres séparés : l'un note seulement que vous avez voté (pour empêcher un second vote), l'autre contient les bulletins, sans aucun nom, ni heure, ni lien avec votre compte. Aucune information enregistrée ne permet de relier votre bulletin à votre compte : la commission ne peut pas savoir pour quoi vous avez voté." },
+            { "title": "Comment être sûr(e) que mon vote compte ?", "text": "À la fin du vote, votre appareil crée un code secret et n'en envoie que l'empreinte. Ce code de reçu vous permet de vérifier que votre bulletin est dans l'urne, sans révéler votre choix. Ne le partagez pas : il est personnel." },
+            { "title": "Et si je perds le réseau ?", "text": "Votre bulletin est conservé sur votre appareil et envoyé automatiquement au retour de la connexion. Un renvoi ne crée jamais un second vote. Il n'est compté qu'une fois reçu par le serveur, et seulement si le scrutin est encore ouvert." },
+            { "title": "Qu'est-ce qui est conservé ?", "text": "Votre adresse (pour la liste électorale), le fait que vous avez voté, et un journal d'audit des opérations (jamais du contenu des votes). Après le scrutin, ces données sont conservées selon la décision de la commission électorale." }
+          ]
+        }
+      ]
+    }
+  ]
+}

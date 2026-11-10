@@ -1,0 +1,3 @@
+# /etc/cron.d/sa-vote — planificateur Laravel (clôture automatique des scrutins à l'heure prévue)
+# Installation : sudo cp deploy/cron.d-sa-vote /etc/cron.d/sa-vote && sudo chmod 644 /etc/cron.d/sa-vote
+* * * * * www-data cd /var/www/sa/api && /usr/bin/php artisan schedule:run >> /dev/null 2>&1

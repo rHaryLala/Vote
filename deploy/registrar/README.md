@@ -1,0 +1,82 @@
+# Synchronisation de la liste électorale avec le registrar
+
+L'application de vote reprend les étudiants inscrits **directement depuis le registrar**, par un export dédié :
+lecture seule, protégé par un jeton, sans jamais utiliser un compte du registrar.
+
+> Pourquoi pas `…/src/data.topdf?ptype=listeStd` ? Cette adresse est une **page d'impression** : elle exige une
+> connexion interactive au registrar, des paramètres POST (`semestre`, `anneescolaire`…) et fabrique le PDF dans le
+> navigateur. La lire automatiquement obligerait à stocker un mot de passe du registrar dans l'application de vote.
+> L'export ci-dessous lit les **mêmes tables** (`t_2024_inscription_session` + `tbl_2024_etudiant`) sans cette contrainte.
+
+## Ce que fait l'export
+
+| Appel | Réponse |
+|---|---|
+| `GET …/electeurs-sa.api.php?action=sessions` | les 8 sessions les plus récentes, avec leur nombre d'inscrits |
+| `GET …/electeurs-sa.api.php?action=voters&session_id=490` | les étudiants inscrits à la session : `email` + `student_id`, plus des compteurs |
+
+- **Inscrit** = une ligne de `t_2024_inscription_session` non supprimée pour la session (même définition que la
+  « Liste des étudiants » imprimable). La fiche de l'étudiant est la fiche active, comme partout dans le registrar.
+- Seuls les étudiants ayant une adresse **@zurcher.edu.mg** sont renvoyés (sans elle, pas de connexion Google). Les
+  autres sont **comptés** (`without_email`) pour que la commission les corrige dans le registrar.
+- **La commission choisit la session** dans l'administration : le registrar n'a pas de notion unique de « session
+  active » (le champ `selected` n'est pas fiable : il vaut 0 partout dans la copie locale).
+- **Lecture seule imposée par MySQL** (`SET SESSION TRANSACTION READ ONLY` sur une connexion propre à l'export : une écriture
+  échouerait, même par erreur de code future), aucun mot de passe, aucune donnée hors adresse et matricule.
+
+## Installation dans le registrar (à relire avant de déployer)
+
+1. **Copier** `electeurs-sa.api.php` dans `registrar/app/` sur le serveur (même dossier que `adresses-google.api.php`).
+   Vérifier qu'il est joignable : `curl -i https://registrar.zurcher.edu.mg/app/electeurs-sa.api.php` doit répondre
+   **503** « pas activé » (c'est normal : l'export est désactivé tant que le jeton n'est pas défini).
+
+2. **Générer un jeton** (long et aléatoire) et son empreinte SHA-256 :
+
+   ```bash
+   TOKEN=$(openssl rand -hex 32)
+   echo "Jeton (pour l'application de vote) : $TOKEN"
+   echo "Empreinte (pour le registrar)      : $(printf %s "$TOKEN" | sha256sum | cut -d' ' -f1)"
+   ```
+
+3. **Registrar** : ajouter l'**empreinte** (jamais le jeton) dans `registrar/data/config.secret.php` :
+
+   ```php
+   define('SA_VOTE_EXPORT_TOKEN_SHA256', '<empreinte>');
+   // Facultatif — n'autoriser que le serveur de vote (défense en profondeur) :
+   // define('SA_VOTE_EXPORT_ALLOWED_IPS', ['203.0.113.10']);
+   ```
+
+4. **Application de vote** : ajouter le **jeton** dans `api/.env` (jamais dans Git), puis `php artisan config:cache` :
+
+   ```
+   REGISTRAR_EXPORT_URL=https://registrar.zurcher.edu.mg/app/electeurs-sa.api.php
+   REGISTRAR_EXPORT_TOKEN=<jeton>
+   ```
+
+5. **Tester** depuis le serveur de vote :
+
+   ```bash
+   curl -s -H "Authorization: Bearer $TOKEN" "https://registrar.zurcher.edu.mg/app/electeurs-sa.api.php?action=sessions"
+   ```
+
+6. Dans l'administration : scrutin en brouillon → **Liste électorale** → choisir la session → **Aperçu** → **Synchroniser**.
+
+## Sécurité
+
+- **Désactivé par défaut** : sans `SA_VOTE_EXPORT_TOKEN_SHA256`, l'endpoint répond 503 et n'ouvre pas la base.
+- Le jeton est comparé par **empreinte** (`hash_equals`) **avant** toute requête SQL ; seule l'empreinte est stockée dans le
+  registrar, donc une fuite de sa configuration ne révèle pas le jeton. Chaque échec est ralenti de 0,3 s.
+- **HTTPS obligatoire** côté application de vote (sauf `localhost` en développement), et **aucune redirection suivie** : le
+  jeton ne peut pas être envoyé vers un autre hôte.
+- Le jeton n'apparaît dans aucune réponse, aucun journal et aucune erreur affichée.
+- Les adresses d'étudiants circulent sur le réseau : limiter l'accès par IP (ci-dessus) et par nginx si possible, et
+  **changer le jeton** (étapes 2 à 4) si l'on soupçonne une fuite.
+- Un export réussi est consigné dans le journal d'audit de l'application de vote (`voters_synced` : session source et
+  compteurs, **jamais** d'adresses).
+
+## Après l'ouverture du scrutin
+
+La liste électorale est **figée** à l'ouverture (équité : le corps électoral ne change pas pendant le vote). La
+synchronisation n'est donc possible qu'en brouillon. Un étudiant inscrit **après** l'ouverture ne peut pas voter : à
+décider en amont par la commission (ouvrir le scrutin après la fin des inscriptions tardives, ou prévoir un ajout
+manuel journalisé).

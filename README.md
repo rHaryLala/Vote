@@ -76,6 +76,11 @@ Un jeton d'électeur ne donne jamais accès à l'administration, et un jeton de 
   vote, l'ajout demande une confirmation et est inscrit au journal d'audit (heure, compte de la commission, empreinte de
   l'adresse — jamais l'adresse ni le nom en clair). On ne peut retirer qu'un ajout manuel qui n'a pas voté (ou n'importe
   quel électeur tant que le scrutin est en brouillon) ; le retrait révoque sa session.
+- **Ouverture et clôture automatiques** : il faut d'abord **armer** le scrutin avec « Ouvrir le scrutin » (étape volontaire, avec
+  confirmation). Une fois armé, le vote s'ouvre **tout seul à l'heure d'ouverture** et refuse tout bulletin à l'heure de
+  clôture (le serveur compare l'heure à chaque bulletin ; l'écran des étudiants se met à jour à la seconde, sans recharger).
+  Un scrutin laissé en **brouillon** ne s'ouvre jamais de lui-même. Le statut « clos » est ensuite posé par le planificateur
+  (cron, `deploy/cron.d-sa-vote`), mais le vote est déjà refusé sans lui.
 - **Dates** : modifiables tant que le scrutin n'est pas clos (ex. prolonger le vote). Chaque changement sur un scrutin
   ouvert est inscrit au journal d'audit (avant / après). Une heure de clôture déjà passée est refusée (utiliser
   « Clore le scrutin »). La question, le candidat et la règle d'acceptation restent figés dès l'ouverture.
